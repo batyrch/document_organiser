@@ -26,45 +26,71 @@ from typing import Optional
 import time
 
 from dotenv import load_dotenv
+from PIL import Image
 
 # Load environment variables from .env file
 load_dotenv()
 
+# Increase PIL's decompression bomb limit for large scanned documents
+# Default is ~178MP, increase to 500MP for large medical scans, etc.
+Image.MAX_IMAGE_PIXELS = 500_000_000  # 500 megapixels
+
 # ==============================================================================
-# CONFIGURATION
+# CONFIGURATION - JOHNNY.DECIMAL SYSTEM
 # ==============================================================================
 
-# Default categories - customize these for your needs!
-DEFAULT_CATEGORIES = {
-    "financial": {
-        "subcategories": ["invoices", "receipts", "tax_documents", "bank_statements", "contracts"],
-        "keywords": ["invoice", "receipt", "tax", "payment", "bank", "statement", "account"]
+# Johnny.Decimal Areas and Categories
+# Format: AC.ID → Area-Category.Item (e.g., 14.03 = Finance area, Receipts category, item 03)
+JD_AREAS = {
+    "00-09 System": {
+        "00 Index": {"keywords": []},
+        "01 Inbox": {"keywords": []},
+        "02 Templates": {"keywords": ["template"]},
     },
-    "medical": {
-        "subcategories": ["prescriptions", "lab_results", "insurance", "appointments", "records"],
-        "keywords": ["medical", "doctor", "patient", "diagnosis", "prescription", "health", "hospital"]
+    "10-19 Finance": {
+        "11 Banking": {"keywords": ["bank", "account", "transfer", "statement", "balance", "sparkasse", "commerzbank"]},
+        "12 Taxes": {"keywords": ["tax", "steuer", "finanzamt", "steuererklärung", "w-2", "1099"]},
+        "13 Insurance": {"keywords": ["insurance", "versicherung", "policy", "premium", "coverage", "claim"]},
+        "14 Receipts": {"keywords": ["receipt", "quittung", "kassenbon", "purchase", "bought", "paid"]},
+        "15 Investments": {"keywords": ["investment", "stock", "portfolio", "dividend", "brokerage"]},
+        "16 Bills": {"keywords": ["invoice", "rechnung", "bill", "payment", "due", "amount"]},
     },
-    "legal": {
-        "subcategories": ["contracts", "agreements", "correspondence", "court", "property"],
-        "keywords": ["agreement", "contract", "legal", "attorney", "court", "law", "hereby"]
+    "20-29 Medical": {
+        "21 Records": {"keywords": ["medical", "doctor", "patient", "diagnosis", "hospital", "clinic", "arzt", "krankenhaus", "lab", "blood", "test"]},
+        "22 Insurance": {"keywords": ["health insurance", "krankenversicherung", "aok", "tk", "barmer"]},
+        "23 Prescriptions": {"keywords": ["prescription", "rezept", "medication", "pharmacy", "apotheke"]},
+        "24 Dental": {"keywords": ["dental", "zahnarzt", "tooth", "dentist"]},
+        "25 Vision": {"keywords": ["eye", "vision", "optiker", "glasses", "brille"]},
     },
-    "personal": {
-        "subcategories": ["identification", "correspondence", "certificates", "photos"],
-        "keywords": ["passport", "license", "certificate", "birth", "marriage", "id"]
+    "30-39 Legal": {
+        "31 Contracts": {"keywords": ["contract", "vertrag", "agreement", "vereinbarung", "signed", "parties", "terms"]},
+        "32 Property": {"keywords": ["property", "immobilie", "deed", "lease", "miete", "wohnung", "grundbuch"]},
+        "33 Identity": {"keywords": ["passport", "reisepass", "id", "ausweis", "license", "führerschein", "birth", "geburt"]},
+        "34 Warranties": {"keywords": ["warranty", "garantie", "guarantee"]},
     },
-    "work": {
-        "subcategories": ["reports", "presentations", "correspondence", "projects", "hr"],
-        "keywords": ["report", "meeting", "project", "employee", "company", "quarterly"]
+    "40-49 Work": {
+        "41 Employment": {"keywords": ["employment", "arbeit", "job", "salary", "gehalt", "arbeitsvertrag", "hr", "payslip"]},
+        "42 Expenses": {"keywords": ["expense", "reimbursement", "spesen", "erstattung"]},
+        "43 Projects": {"keywords": ["project", "projekt", "report", "bericht", "presentation", "documentation"]},
+        "44 Certifications": {"keywords": ["certification", "zertifikat", "professional", "training"]},
     },
-    "education": {
-        "subcategories": ["transcripts", "certificates", "assignments", "notes"],
-        "keywords": ["school", "university", "grade", "course", "student", "degree", "diploma"]
+    "50-59 Personal": {
+        "51 Education": {"keywords": ["education", "school", "schule", "university", "universität", "degree", "diploma", "course", "kurs", "grade"]},
+        "52 Travel": {"keywords": ["travel", "reise", "flight", "flug", "hotel", "booking", "itinerary"]},
+        "53 Certificates": {"keywords": ["certificate", "urkunde", "marriage", "heirat"]},
+        "54 Memberships": {"keywords": ["membership", "mitgliedschaft", "club", "verein", "subscription"]},
     },
-    "other": {
-        "subcategories": ["miscellaneous"],
-        "keywords": []
-    }
+    "90-99 Archive": {
+        "91 2024": {"keywords": []},
+        "92 2023": {"keywords": []},
+    },
 }
+
+# Flat list of categories for keyword matching
+JD_KEYWORDS = {}
+for area, categories in JD_AREAS.items():
+    for category, config in categories.items():
+        JD_KEYWORDS[(area, category)] = config.get("keywords", [])
 
 # ==============================================================================
 # DOCUMENT PROCESSING
@@ -126,6 +152,14 @@ def extract_text_fallback(file_path: str) -> dict:
             import pytesseract
             from PIL import Image
             img = Image.open(file_path)
+
+            # Resize very large images to avoid memory issues during OCR
+            max_dimension = 10000  # pixels
+            if max(img.size) > max_dimension:
+                ratio = max_dimension / max(img.size)
+                new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
+                img = img.resize(new_size, Image.Resampling.LANCZOS)
+
             text = pytesseract.image_to_string(img)
             return {"success": True, "text": text, "metadata": {"type": "image"}}
         
@@ -140,58 +174,88 @@ def extract_text_fallback(file_path: str) -> dict:
 # AI CATEGORIZATION
 # ==============================================================================
 
-def categorize_with_keywords(text: str, categories: dict) -> dict:
-    """Simple keyword-based categorization (no API needed)."""
+def categorize_with_keywords(text: str, jd_areas: dict = None) -> dict:
+    """Simple keyword-based categorization using Johnny.Decimal (no API needed)."""
+    if jd_areas is None:
+        jd_areas = JD_AREAS
+
     text_lower = text.lower()
     scores = {}
-    
-    for category, config in categories.items():
-        score = sum(1 for kw in config["keywords"] if kw in text_lower)
-        scores[category] = score
-    
+
+    # Score each JD category
+    for area, categories in jd_areas.items():
+        if area == "00-09 System" or area == "90-99 Archive":
+            continue  # Skip system and archive areas
+        for category, config in categories.items():
+            keywords = config.get("keywords", [])
+            score = sum(1 for kw in keywords if kw in text_lower)
+            scores[(area, category)] = score
+
     # Find best category
-    best_category = max(scores, key=scores.get) if max(scores.values()) > 0 else "other"
-    
+    if scores and max(scores.values()) > 0:
+        best = max(scores, key=scores.get)
+        jd_area, jd_category = best
+    else:
+        # Default fallback
+        jd_area = "50-59 Personal"
+        jd_category = "54 Memberships"
+
     # Simple tag extraction - find matching keywords
     tags = []
-    for category, config in categories.items():
-        for kw in config["keywords"]:
+    for (area, category), keywords in JD_KEYWORDS.items():
+        for kw in keywords:
             if kw in text_lower and kw not in tags:
                 tags.append(kw)
-    
+
     return {
-        "category": best_category,
-        "subcategory": categories[best_category]["subcategories"][0],
+        "jd_area": jd_area,
+        "jd_category": jd_category,
         "tags": tags[:10],  # Limit to 10 tags
         "confidence": "low",
-        "summary": text[:200] + "..." if len(text) > 200 else text
+        "summary": text[:200] + "..." if len(text) > 200 else text,
+        "correspondent": None,
+        "date_mentioned": None,
+        "entities": []
     }
 
 
-def categorize_with_claude_code(text: str, categories: dict) -> dict:
-    """Use Claude Code CLI (works with Max subscription) to categorize."""
+def categorize_with_claude_code(text: str, jd_areas: dict = None) -> dict:
+    """Use Claude Code CLI (works with Max subscription) to categorize using Johnny.Decimal."""
     import subprocess
-    
+
+    if jd_areas is None:
+        jd_areas = JD_AREAS
+
     # Truncate text if too long
     max_chars = 6000
     truncated_text = text[:max_chars] if len(text) > max_chars else text
-    
-    category_list = list(categories.keys())
-    
-    prompt = f"""Analyze this document and categorize it. 
 
-Available categories: {', '.join(category_list)}
+    # Build JD structure for prompt
+    jd_structure = {}
+    for area, categories in jd_areas.items():
+        if area not in ["00-09 System", "90-99 Archive"]:
+            jd_structure[area] = list(categories.keys())
 
-For each category, these are the subcategories:
-{json.dumps({k: v['subcategories'] for k, v in categories.items()}, indent=2)}
+    prompt = f"""You are a document categorization assistant using the Johnny.Decimal system.
+
+Available Johnny.Decimal areas and categories:
+{json.dumps(jd_structure, indent=2)}
+
+Analyze this document and categorize it.
 
 Document content:
 ---
 {truncated_text}
 ---
 
+IMPORTANT naming rules:
+- "document_type" should describe WHAT the document is (e.g., "Blood Test Results", "Employment Contract", "Insurance Card")
+- "issuer" should be the organization/entity that CREATED or ISSUED the document (e.g., "Charité Hospital", "TK Insurance", "AutoScout24")
+- Do NOT use the document subject's personal name as issuer (e.g., if it's a medical report FOR "John Smith", the issuer is the hospital, not John Smith)
+- "subject_person" should ONLY be filled if the document is about someone OTHER than the system owner (e.g., spouse's documents)
+
 Respond with ONLY valid JSON in this exact format (no other text):
-{{"category": "one of the categories", "subcategory": "subcategory", "tags": ["tag1", "tag2"], "confidence": "high/medium/low", "summary": "One sentence summary", "date_mentioned": "YYYY-MM-DD or null", "entities": ["names"]}}"""
+{{"jd_area": "one of the areas like 10-19 Finance", "jd_category": "one of the categories like 14 Receipts", "document_type": "specific type like Blood Test Results or Employment Contract", "issuer": "organization that created/issued the document", "subject_person": "only if document is about someone other than system owner, otherwise null", "tags": ["tag1", "tag2"], "confidence": "high/medium/low", "summary": "One sentence summary", "date_mentioned": "YYYY-MM-DD or null", "entities": ["organization names", "relevant identifiers"]}}"""
 
     try:
         # Use Claude Code CLI with --print flag for non-interactive output
@@ -201,26 +265,26 @@ Respond with ONLY valid JSON in this exact format (no other text):
             text=True,
             timeout=60
         )
-        
+
         if result.returncode != 0:
             raise Exception(f"Claude Code failed: {result.stderr}")
-        
+
         result_text = result.stdout.strip()
-        
+
         # Parse JSON from response
         if "```json" in result_text:
             result_text = result_text.split("```json")[1].split("```")[0]
         elif "```" in result_text:
             result_text = result_text.split("```")[1].split("```")[0]
-        
+
         # Try to find JSON in the response
         import re
         json_match = re.search(r'\{[^{}]*\}', result_text, re.DOTALL)
         if json_match:
             result_text = json_match.group()
-            
+
         return json.loads(result_text)
-        
+
     except FileNotFoundError:
         print("  ⚠️  Claude Code CLI not found. Install with: npm install -g @anthropic-ai/claude-code")
         return None
@@ -229,48 +293,64 @@ Respond with ONLY valid JSON in this exact format (no other text):
         return None
 
 
-def categorize_with_llm(text: str, categories: dict, api_key: Optional[str] = None) -> dict:
-    """Use Claude API to intelligently categorize the document."""
-    
+def categorize_with_llm(text: str, jd_areas: dict = None, api_key: Optional[str] = None) -> dict:
+    """Use Claude API to categorize using Johnny.Decimal."""
+
+    if jd_areas is None:
+        jd_areas = JD_AREAS
+
     if not api_key:
         api_key = os.environ.get("ANTHROPIC_API_KEY")
-    
+
     if not api_key:
         print("  ⚠️  No API key found, using keyword-based categorization")
-        return categorize_with_keywords(text, categories)
-    
+        return categorize_with_keywords(text, jd_areas)
+
     try:
         import anthropic
-        
+
         client = anthropic.Anthropic(api_key=api_key)
-        
+
         # Truncate text if too long
         max_chars = 8000
         truncated_text = text[:max_chars] if len(text) > max_chars else text
-        
-        category_list = list(categories.keys())
-        
-        prompt = f"""Analyze this document and categorize it. 
 
-Available categories: {', '.join(category_list)}
+        # Build JD structure for prompt
+        jd_structure = {}
+        for area, categories in jd_areas.items():
+            if area not in ["00-09 System", "90-99 Archive"]:
+                jd_structure[area] = list(categories.keys())
 
-For each category, these are the subcategories:
-{json.dumps({k: v['subcategories'] for k, v in categories.items()}, indent=2)}
+        prompt = f"""You are a document categorization assistant using the Johnny.Decimal system.
+
+Available Johnny.Decimal areas and categories:
+{json.dumps(jd_structure, indent=2)}
+
+Analyze this document and categorize it.
 
 Document content:
 ---
 {truncated_text}
 ---
 
+IMPORTANT naming rules:
+- "document_type" should describe WHAT the document is (e.g., "Blood Test Results", "Employment Contract", "Insurance Card")
+- "issuer" should be the organization/entity that CREATED or ISSUED the document (e.g., "Charité Hospital", "TK Insurance", "AutoScout24")
+- Do NOT use the document subject's personal name as issuer (e.g., if it's a medical report FOR "John Smith", the issuer is the hospital, not John Smith)
+- "subject_person" should ONLY be filled if the document is about someone OTHER than the system owner (e.g., spouse's documents)
+
 Respond with ONLY valid JSON in this exact format:
 {{
-    "category": "one of the categories listed above",
-    "subcategory": "one of the subcategories for that category",
+    "jd_area": "one of the areas like 10-19 Finance",
+    "jd_category": "one of the categories like 14 Receipts",
+    "document_type": "specific type like Blood Test Results or Employment Contract",
+    "issuer": "organization that created/issued the document",
+    "subject_person": "only if document is about someone other than system owner, otherwise null",
     "tags": ["tag1", "tag2", "tag3"],
     "confidence": "high/medium/low",
     "summary": "One sentence summary of the document",
     "date_mentioned": "YYYY-MM-DD if a date is found, null otherwise",
-    "entities": ["person names", "company names", "etc"]
+    "entities": ["organization names", "relevant identifiers"]
 }}"""
 
         response = client.messages.create(
@@ -278,67 +358,157 @@ Respond with ONLY valid JSON in this exact format:
             max_tokens=500,
             messages=[{"role": "user", "content": prompt}]
         )
-        
+
         result_text = response.content[0].text.strip()
-        
+
         # Parse JSON from response
         if "```json" in result_text:
             result_text = result_text.split("```json")[1].split("```")[0]
         elif "```" in result_text:
             result_text = result_text.split("```")[1].split("```")[0]
-            
+
         return json.loads(result_text)
-        
+
     except Exception as e:
         print(f"  ⚠️  LLM categorization failed: {e}")
-        return categorize_with_keywords(text, categories)
+        return categorize_with_keywords(text, jd_areas)
 
 
 # ==============================================================================
-# FILE ORGANIZATION
+# FILE ORGANIZATION - JOHNNY.DECIMAL
 # ==============================================================================
+
+def get_jd_ids_path(output_dir: str) -> Path:
+    """Get path to the JD IDs tracking file."""
+    return Path(output_dir) / ".jd_ids.json"
+
+
+def load_jd_ids(output_dir: str) -> dict:
+    """Load the JD IDs tracking database."""
+    ids_path = get_jd_ids_path(output_dir)
+    if ids_path.exists():
+        try:
+            with open(ids_path, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return {}
+    return {}
+
+
+def save_jd_ids(output_dir: str, jd_ids: dict):
+    """Save the JD IDs tracking database."""
+    ids_path = get_jd_ids_path(output_dir)
+    ids_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(ids_path, 'w') as f:
+        json.dump(jd_ids, f, indent=2, ensure_ascii=False)
+
+
+def get_or_create_jd_id(output_dir: str, jd_category: str, correspondent: str, year: str) -> str:
+    """Get existing or create new JD ID for a correspondent+year combination."""
+    jd_ids = load_jd_ids(output_dir)
+
+    # Initialize category tracking if needed
+    if jd_category not in jd_ids:
+        jd_ids[jd_category] = {"next_id": 1, "mappings": {}}
+
+    # Create key for this correspondent+year
+    key = f"{correspondent}_{year}"
+
+    # Check if we already have an ID for this combination
+    if key in jd_ids[jd_category]["mappings"]:
+        return jd_ids[jd_category]["mappings"][key]
+
+    # Create new ID
+    cat_num = jd_category.split()[0]  # e.g., "14" from "14 Receipts"
+    id_num = jd_ids[jd_category]["next_id"]
+    jd_id = f"{cat_num}.{id_num:02d}"
+
+    # Save mapping
+    jd_ids[jd_category]["mappings"][key] = jd_id
+    jd_ids[jd_category]["next_id"] = id_num + 1
+    save_jd_ids(output_dir, jd_ids)
+
+    return jd_id
+
+
+def slugify(text: str, max_length: int = 30) -> str:
+    """Convert text to a clean slug for filenames.
+
+    Converts to lowercase, replaces spaces with underscores, removes special chars.
+    """
+    if not text:
+        return "unknown"
+    # Replace spaces and common separators with underscores
+    slug = text.lower().replace(" ", "_").replace("-", "_")
+    # Remove problematic chars, keep alphanumeric and underscores
+    slug = "".join(c if c.isalnum() or c == "_" else "" for c in slug)
+    # Collapse multiple underscores
+    while "__" in slug:
+        slug = slug.replace("__", "_")
+    # Trim underscores from ends
+    slug = slug.strip("_")
+    return slug[:max_length] if slug else "unknown"
+
 
 def generate_filename(original_name: str, analysis: dict) -> str:
-    """Generate a descriptive filename based on analysis."""
+    """Generate a descriptive filename based on analysis.
+
+    Format: YYYYMMDD_{issuer}_{document_type}.ext
+    Example: 20241220_charite_blood_test_results.pdf
+    """
     suffix = Path(original_name).suffix
-    
-    # Use date if found
-    date_part = analysis.get("date_mentioned", "")
-    if date_part:
-        date_part = date_part.replace("-", "") + "_"
+
+    # Use date if found, format as YYYYMMDD
+    date_mentioned = analysis.get("date_mentioned", "")
+    if date_mentioned:
+        date_part = date_mentioned.replace("-", "")
     else:
-        date_part = datetime.now().strftime("%Y%m%d") + "_"
-    
-    # Use first entity or first tag for naming
-    entities = analysis.get("entities", [])
-    tags = analysis.get("tags", [])
-    
-    name_part = ""
-    if entities:
-        name_part = entities[0].replace(" ", "_")[:30]
-    elif tags:
-        name_part = "_".join(tags[:2])[:30]
+        date_part = datetime.now().strftime("%Y%m%d")
+
+    # Get issuer and document type from analysis
+    issuer = analysis.get("issuer", "")
+    document_type = analysis.get("document_type", "")
+
+    # Build name parts
+    issuer_slug = slugify(issuer, 20) if issuer else ""
+    doc_type_slug = slugify(document_type, 25) if document_type else ""
+
+    # Combine parts, handling missing values
+    if issuer_slug and doc_type_slug:
+        name_part = f"{issuer_slug}_{doc_type_slug}"
+    elif doc_type_slug:
+        name_part = doc_type_slug
+    elif issuer_slug:
+        name_part = issuer_slug
     else:
-        name_part = Path(original_name).stem[:30]
-    
-    # Clean the name
-    name_part = "".join(c if c.isalnum() or c == "_" else "_" for c in name_part)
-    
-    return f"{date_part}{name_part}{suffix}"
+        # Fallback to tags or original filename
+        tags = analysis.get("tags", [])
+        if tags:
+            name_part = "_".join(slugify(t, 15) for t in tags[:2])
+        else:
+            name_part = slugify(Path(original_name).stem, 30)
+
+    return f"{date_part}_{name_part}{suffix}"
 
 
-def create_metadata_file(file_path: str, analysis: dict, original_name: str, extracted_text: str = ""):
-    """Create a JSON sidecar file with metadata and extracted text."""
+def create_metadata_file(file_path: str, analysis: dict, original_name: str, jd_id: str, extracted_text: str = ""):
+    """Create a JSON sidecar file with JD metadata and extracted text."""
     metadata = {
+        "id": jd_id,
+        "jd_area": analysis.get("jd_area"),
+        "jd_category": analysis.get("jd_category"),
+        "document_type": analysis.get("document_type"),
+        "issuer": analysis.get("issuer"),
+        "subject_person": analysis.get("subject_person"),
+        "correspondent": analysis.get("correspondent"),  # Keep for backwards compatibility
         "original_filename": original_name,
+        "current_filename": Path(file_path).name,
         "organized_date": datetime.now().isoformat(),
-        "category": analysis.get("category"),
-        "subcategory": analysis.get("subcategory"),
+        "document_date": analysis.get("date_mentioned"),
         "tags": analysis.get("tags", []),
         "summary": analysis.get("summary", ""),
         "confidence": analysis.get("confidence", ""),
         "entities": analysis.get("entities", []),
-        "date_mentioned": analysis.get("date_mentioned"),
         "extracted_text": extracted_text
     }
 
@@ -347,17 +517,91 @@ def create_metadata_file(file_path: str, analysis: dict, original_name: str, ext
         json.dump(metadata, f, indent=2, ensure_ascii=False)
 
 
-def organize_file(file_path: str, output_dir: str, analysis: dict, extracted_text: str = "") -> str:
-    """Move file to organized folder structure."""
-    category = analysis.get("category", "other")
-    subcategory = analysis.get("subcategory", "miscellaneous")
+def generate_folder_descriptor(analysis: dict, original_name: str) -> str:
+    """Generate a descriptive folder name from analysis.
 
-    # Create folder structure: output/category/subcategory/
-    dest_dir = Path(output_dir) / category / subcategory
+    Format: {Issuer} {Document_Type}
+    Example: "Charité Blood Test Results" or "TK Insurance Card"
+
+    Falls back to issuer-only or document-type-only if one is missing.
+    """
+    issuer = analysis.get("issuer", "")
+    document_type = analysis.get("document_type", "")
+    subject_person = analysis.get("subject_person")
+
+    # Clean up issuer - remove trailing punctuation, normalize spaces
+    if issuer:
+        issuer = issuer.strip().rstrip(".,;:")
+        # Replace problematic filesystem chars
+        issuer = issuer.replace("/", "_").replace("\\", "_").replace(":", "_")
+
+    # Clean up document type
+    if document_type:
+        document_type = document_type.strip().rstrip(".,;:")
+        document_type = document_type.replace("/", "_").replace("\\", "_").replace(":", "_")
+
+    # Build the descriptor
+    parts = []
+    if issuer:
+        parts.append(issuer)
+    if document_type:
+        parts.append(document_type)
+
+    # Add subject person if it's someone other than the system owner
+    if subject_person and subject_person.lower() not in ["null", "none", ""]:
+        parts.append(f"({subject_person})")
+
+    if parts:
+        descriptor = " ".join(parts)
+    else:
+        # Fallback: use original filename stem
+        stem = Path(original_name).stem
+        # Remove date prefix if present (e.g., "20241220_something")
+        if len(stem) > 8 and stem[:8].isdigit():
+            stem = stem[9:] if len(stem) > 9 else stem
+        descriptor = stem.replace("_", " ").title()
+
+    # Limit length for filesystem compatibility
+    return descriptor[:60]
+
+
+def extract_year(analysis: dict) -> str:
+    """Extract year from analysis."""
+    date_mentioned = analysis.get("date_mentioned")
+    if date_mentioned:
+        try:
+            return date_mentioned[:4]
+        except (TypeError, IndexError):
+            pass
+    return str(datetime.now().year)
+
+
+def organize_file(file_path: str, output_dir: str, analysis: dict, extracted_text: str = "") -> str:
+    """Move file to Johnny.Decimal folder structure.
+
+    Structure: output/Area/Category/ID {Issuer} {DocType} Year/filename
+    Example: output/10-19 Finance/14 Receipts/14.01 Amazon Laptop Receipt 2024/20241220_amazon_laptop_receipt.pdf
+    """
+    jd_area = analysis.get("jd_area", "50-59 Personal")
+    jd_category = analysis.get("jd_category", "54 Memberships")
+
+    # Generate folder descriptor from issuer + document type
+    original_name = Path(file_path).name
+    folder_descriptor = generate_folder_descriptor(analysis, original_name)
+    year = extract_year(analysis)
+
+    # Get or create JD ID for this descriptor+year combination
+    jd_id = get_or_create_jd_id(output_dir, jd_category, folder_descriptor, year)
+
+    # Create ID folder name: "14.01 Amazon Laptop Receipt 2024"
+    id_folder_name = f"{jd_id} {folder_descriptor} {year}"
+
+    # Create folder structure: output/Area/Category/ID Folder/
+    dest_dir = Path(output_dir) / jd_area / jd_category / id_folder_name
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate new filename
-    new_name = generate_filename(Path(file_path).name, analysis)
+    new_name = generate_filename(original_name, analysis)
     dest_path = dest_dir / new_name
 
     # Handle duplicates
@@ -368,18 +612,43 @@ def organize_file(file_path: str, output_dir: str, analysis: dict, extracted_tex
         dest_path = dest_dir / f"{stem}_{counter}{suffix}"
         counter += 1
 
-    original_name = Path(file_path).name
-
     # Move the file
     shutil.move(file_path, dest_path)
 
     # Create metadata sidecar with extracted text
-    create_metadata_file(str(dest_path), analysis, original_name, extracted_text)
+    create_metadata_file(str(dest_path), analysis, original_name, jd_id, extracted_text)
 
     # Add to central search index
     add_to_search_index(output_dir, str(dest_path), original_name, analysis, extracted_text)
 
+    # Update JDex index
+    update_jdex_index(output_dir, jd_id, jd_area, jd_category, folder_descriptor, year,
+                      Path(dest_path).name, analysis.get("summary", ""))
+
     return str(dest_path)
+
+
+def update_jdex_index(output_dir: str, jd_id: str, jd_area: str, jd_category: str,
+                      correspondent: str, year: str, filename: str, summary: str):
+    """Append a new entry to the JDex index file."""
+    index_path = Path(output_dir) / "00-09 System" / "00 Index" / "00.00 Index.md"
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+
+    entry = f"""
+#### {jd_id} {correspondent} {year}
+Location: file system
+
+- {filename}
+  {summary[:100]}{'...' if len(summary) > 100 else ''}
+
+"""
+
+    # Append to index file (or create if doesn't exist)
+    mode = 'a' if index_path.exists() else 'w'
+    with open(index_path, mode) as f:
+        if mode == 'w':
+            f.write(f"# JDex Index\n\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n---\n\n")
+        f.write(entry)
 
 
 # ==============================================================================
@@ -447,8 +716,9 @@ def add_to_search_index(output_dir: str, doc_path: str, original_name: str,
     entry = {
         "file_path": doc_path,
         "original_filename": original_name,
-        "category": analysis.get("category"),
-        "subcategory": analysis.get("subcategory"),
+        "jd_area": analysis.get("jd_area"),
+        "jd_category": analysis.get("jd_category"),
+        "correspondent": analysis.get("correspondent"),
         "tags": analysis.get("tags", []),
         "summary": analysis.get("summary", ""),
         "entities": analysis.get("entities", []),
@@ -490,21 +760,24 @@ def mark_file_processed(file_hash: str, original_name: str, dest_path: str, proc
 # MAIN PROCESSING
 # ==============================================================================
 
-def process_file(file_path: str, output_dir: str, categories: dict, mode: str = "claude-code") -> dict:
-    """Process a single file: extract, categorize, organize.
-    
+def process_file(file_path: str, output_dir: str, jd_areas: dict = None, mode: str = "claude-code") -> dict:
+    """Process a single file: extract, categorize, organize using Johnny.Decimal.
+
     mode: "claude-code" (uses Max subscription), "api" (uses ANTHROPIC_API_KEY), "keywords" (no AI)
     """
+    if jd_areas is None:
+        jd_areas = JD_AREAS
+
     print(f"\n📄 Processing: {Path(file_path).name}")
-    
+
     # Step 1: Extract text
     print("  📖 Extracting text...")
     result = extract_text_with_docling(file_path)
-    
+
     if not result["success"]:
         print(f"  ⚠️  Docling failed, trying fallback: {result.get('error', 'unknown')}")
         result = extract_text_fallback(file_path)
-    
+
     if not result["success"] or not result["text"].strip():
         print(f"  ❌ Could not extract text from file")
         # Move to 'failed' folder
@@ -513,24 +786,26 @@ def process_file(file_path: str, output_dir: str, categories: dict, mode: str = 
         dest = failed_dir / Path(file_path).name
         shutil.move(file_path, dest)
         return {"success": False, "error": "Text extraction failed"}
-    
+
     print(f"  ✅ Extracted {len(result['text'])} characters")
-    
-    # Step 2: Categorize
+
+    # Step 2: Categorize using Johnny.Decimal
     print("  🤖 Analyzing content...")
     analysis = None
-    
+
     if mode == "claude-code":
-        analysis = categorize_with_claude_code(result["text"], categories)
+        analysis = categorize_with_claude_code(result["text"], jd_areas)
         if analysis is None:
             print("  ⚠️  Falling back to keyword matching")
-            analysis = categorize_with_keywords(result["text"], categories)
+            analysis = categorize_with_keywords(result["text"], jd_areas)
     elif mode == "api":
-        analysis = categorize_with_llm(result["text"], categories)
+        analysis = categorize_with_llm(result["text"], jd_areas)
     else:
-        analysis = categorize_with_keywords(result["text"], categories)
-    
-    print(f"  📁 Category: {analysis['category']}/{analysis['subcategory']}")
+        analysis = categorize_with_keywords(result["text"], jd_areas)
+
+    jd_area = analysis.get('jd_area', '50-59 Personal')
+    jd_category = analysis.get('jd_category', '54 Memberships')
+    print(f"  📁 JD: {jd_area} / {jd_category}")
     print(f"  🏷️  Tags: {', '.join(analysis.get('tags', [])[:5])}")
 
     # Step 3: Organize (pass extracted text for searchable index)
@@ -538,7 +813,7 @@ def process_file(file_path: str, output_dir: str, categories: dict, mode: str = 
     extracted_text = result["text"]
     dest_path = organize_file(file_path, output_dir, analysis, extracted_text)
     print(f"  ✅ Moved to: {dest_path}")
-    
+
     return {
         "success": True,
         "original": file_path,
@@ -547,11 +822,15 @@ def process_file(file_path: str, output_dir: str, categories: dict, mode: str = 
     }
 
 
-def watch_folder(inbox_dir: str, output_dir: str, categories: dict, mode: str = "claude-code", interval: int = 5):
-    """Watch inbox folder and process new files."""
+def watch_folder(inbox_dir: str, output_dir: str, jd_areas: dict = None, mode: str = "claude-code", interval: int = 5):
+    """Watch inbox folder and process new files using Johnny.Decimal."""
+    if jd_areas is None:
+        jd_areas = JD_AREAS
+
     print(f"\n👁️  Watching folder: {inbox_dir}")
     print(f"📤 Output folder: {output_dir}")
     print(f"🤖 Mode: {mode}")
+    print(f"📂 Using Johnny.Decimal organization")
     print(f"🔄 Checking every {interval} seconds (Ctrl+C to stop)\n")
 
     # Load persistent processed files database
@@ -583,7 +862,7 @@ def watch_folder(inbox_dir: str, output_dir: str, categories: dict, mode: str = 
                     continue
 
                 # Process the file
-                result = process_file(str(file_path), output_dir, categories, mode)
+                result = process_file(str(file_path), output_dir, jd_areas, mode)
 
                 if result.get("success"):
                     mark_file_processed(file_hash, original_name, result["destination"], processed)
@@ -596,11 +875,15 @@ def watch_folder(inbox_dir: str, output_dir: str, categories: dict, mode: str = 
             break
 
 
-def process_once(inbox_dir: str, output_dir: str, categories: dict, mode: str = "claude-code"):
-    """Process all files in inbox once (no watching)."""
+def process_once(inbox_dir: str, output_dir: str, jd_areas: dict = None, mode: str = "claude-code"):
+    """Process all files in inbox once (no watching) using Johnny.Decimal."""
+    if jd_areas is None:
+        jd_areas = JD_AREAS
+
     print(f"\n📥 Processing all files in: {inbox_dir}")
     print(f"📤 Output folder: {output_dir}")
-    print(f"🤖 Mode: {mode}\n")
+    print(f"🤖 Mode: {mode}")
+    print(f"📂 Using Johnny.Decimal organization\n")
 
     # Load persistent processed files database
     processed = load_processed_files(output_dir)
@@ -628,7 +911,7 @@ def process_once(inbox_dir: str, output_dir: str, categories: dict, mode: str = 
             skipped += 1
             continue
 
-        result = process_file(str(file_path), output_dir, categories, mode)
+        result = process_file(str(file_path), output_dir, jd_areas, mode)
         results.append(result)
 
         if result.get("success"):
@@ -651,43 +934,66 @@ def process_once(inbox_dir: str, output_dir: str, categories: dict, mode: str = 
 # CLI
 # ==============================================================================
 
+# Default paths for Johnny.Decimal system
+DEFAULT_JD_OUTPUT = "/Users/batch/Documents/scanned_documents/jd_documents"
+DEFAULT_JD_INBOX = "/Users/batch/Documents/scanned_documents/jd_documents/00-09 System/01 Inbox"
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Automatically organize documents using AI",
+        description="Automatically organize documents using AI and Johnny.Decimal",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+Johnny.Decimal Organization System
+==================================
+Documents are organized into a hierarchical structure:
+  Area → Category → ID Folder → Files
+
+Example: 10-19 Finance/14 Receipts/14.01 Amazon 2024/2024-12-20_laptop.pdf
+
 Examples:
   # Use Claude Code with your Max subscription (recommended)
-  python document_organizer.py --inbox ./inbox --output ./organized
-  
+  python document_organizer.py --inbox ./inbox --output ./jd_documents
+
   # Use API key instead
-  python document_organizer.py --inbox ./inbox --output ./organized --mode api
-  
+  python document_organizer.py --inbox ./inbox --output ./jd_documents --mode api
+
   # Use only keyword matching (no AI needed)
-  python document_organizer.py --inbox ./inbox --output ./organized --mode keywords
-  
+  python document_organizer.py --inbox ./inbox --output ./jd_documents --mode keywords
+
   # Process all files once (don't watch)
-  python document_organizer.py --inbox ./inbox --output ./organized --once
+  python document_organizer.py --inbox ./inbox --output ./jd_documents --once
 
 Modes:
   claude-code  Use Claude Code CLI (works with Max subscription, no API key needed)
   api          Use Anthropic API (requires ANTHROPIC_API_KEY env variable)
   keywords     Simple keyword matching (no AI, always works)
+
+JD Areas:
+  10-19 Finance   Banking, Taxes, Insurance, Receipts, Bills
+  20-29 Medical   Records, Insurance, Prescriptions, Dental, Vision
+  30-39 Legal     Contracts, Property, Identity, Warranties
+  40-49 Work      Employment, Expenses, Projects, Certifications
+  50-59 Personal  Education, Travel, Certificates, Memberships
         """
     )
-    
-    parser.add_argument("--inbox", "-i", default=os.getenv("INBOX_DIR"), help="Input folder to watch/process")
-    parser.add_argument("--output", "-o", default=os.getenv("OUTPUT_DIR"), help="Output folder for organized files")
+
+    parser.add_argument("--inbox", "-i",
+                        default=os.getenv("INBOX_DIR", DEFAULT_JD_INBOX),
+                        help="Input folder to watch/process")
+    parser.add_argument("--output", "-o",
+                        default=os.getenv("OUTPUT_DIR", DEFAULT_JD_OUTPUT),
+                        help="Output folder for organized files (JD root)")
     parser.add_argument("--once", action="store_true", help="Process once and exit (don't watch)")
-    parser.add_argument("--mode", "-m", choices=["claude-code", "api", "keywords"], 
+    parser.add_argument("--mode", "-m", choices=["claude-code", "api", "keywords"],
                         default="claude-code", help="Categorization mode (default: claude-code)")
     parser.add_argument("--interval", type=int, default=5, help="Watch interval in seconds (default: 5)")
-    
+
     # Legacy flag for backwards compatibility
     parser.add_argument("--no-llm", action="store_true", help="(deprecated) Use --mode keywords instead")
-    
+
     args = parser.parse_args()
-    
+
     # Handle legacy flag
     mode = args.mode
     if args.no_llm:
@@ -702,11 +1008,11 @@ Modes:
     # Create directories
     Path(args.inbox).mkdir(parents=True, exist_ok=True)
     Path(args.output).mkdir(parents=True, exist_ok=True)
-    
+
     if args.once:
-        process_once(args.inbox, args.output, DEFAULT_CATEGORIES, mode)
+        process_once(args.inbox, args.output, JD_AREAS, mode)
     else:
-        watch_folder(args.inbox, args.output, DEFAULT_CATEGORIES, mode, args.interval)
+        watch_folder(args.inbox, args.output, JD_AREAS, mode, args.interval)
 
 
 if __name__ == "__main__":
