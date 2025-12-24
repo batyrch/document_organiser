@@ -20,6 +20,7 @@ import json
 import shutil
 import argparse
 import hashlib
+import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -30,6 +31,48 @@ from PIL import Image
 
 # Load environment variables from .env file
 load_dotenv()
+
+# ==============================================================================
+# LOGGING CONFIGURATION
+# ==============================================================================
+
+def setup_logging() -> logging.Logger:
+    """Configure logging based on environment variables."""
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    log_file = os.getenv("LOG_FILE", "")
+
+    # Create logger
+    logger = logging.getLogger("document_organizer")
+    logger.setLevel(getattr(logging, log_level, logging.INFO))
+
+    # Prevent duplicate handlers on reimport
+    if logger.handlers:
+        return logger
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG)
+    console_format = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    console_handler.setFormatter(console_format)
+    logger.addHandler(console_handler)
+
+    # File handler (if LOG_FILE is set)
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(logging.DEBUG)
+        file_format = logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s:%(funcName)s:%(lineno)d - %(message)s"
+        )
+        file_handler.setFormatter(file_format)
+        logger.addHandler(file_handler)
+
+    return logger
+
+# Initialize logger
+logger = setup_logging()
 
 # Increase PIL's decompression bomb limit for large scanned documents
 # Default is ~178MP, increase to 500MP for large medical scans, etc.
@@ -307,10 +350,10 @@ Respond with ONLY valid JSON in this exact format (no other text):
         return json.loads(result_text)
 
     except FileNotFoundError:
-        print("  ⚠️  Claude Code CLI not found. Install with: npm install -g @anthropic-ai/claude-code")
+        logger.warning("Claude Code CLI not found. Install with: npm install -g @anthropic-ai/claude-code")
         return None
     except Exception as e:
-        print(f"  ⚠️  Claude Code categorization failed: {e}")
+        logger.warning(f"Claude Code categorization failed: {e}")
         return None
 
 
@@ -327,7 +370,7 @@ def categorize_with_llm(text: str, jd_areas: dict = None, api_key: Optional[str]
         api_key = os.environ.get("ANTHROPIC_API_KEY")
 
     if not api_key:
-        print("  ⚠️  No API key found, using keyword-based categorization")
+        logger.warning("No API key found, using keyword-based categorization")
         return categorize_with_keywords(text, jd_areas)
 
     try:
@@ -407,7 +450,7 @@ Respond with ONLY valid JSON in this exact format:
         return json.loads(result_text)
 
     except Exception as e:
-        print(f"  ⚠️  LLM categorization failed: {e}")
+        logger.error(f"LLM categorization failed: {e}")
         return categorize_with_keywords(text, jd_areas)
 
 
@@ -1195,9 +1238,15 @@ def process_once(inbox_dir: str, output_dir: str, jd_areas: dict = None, mode: s
 # CLI
 # ==============================================================================
 
-# Default paths for Johnny.Decimal system
-DEFAULT_JD_OUTPUT = "/Users/batch/Documents/scanned_documents/jd_organized_v2"
-DEFAULT_JD_INBOX = "/Users/batch/Documents/scanned_documents/jd_organized_v2/00-09 System/01 Inbox"
+# Default paths for Johnny.Decimal system (portable - uses home directory)
+DEFAULT_JD_OUTPUT = os.getenv(
+    "OUTPUT_DIR",
+    str(Path.home() / "Documents" / "jd_documents")
+)
+DEFAULT_JD_INBOX = os.getenv(
+    "INBOX_DIR",
+    str(Path.home() / "Documents" / "jd_documents" / "00-09 System" / "01 Inbox")
+)
 
 
 def main():
@@ -1246,10 +1295,10 @@ JD Areas:
     )
 
     parser.add_argument("--inbox", "-i",
-                        default=os.getenv("INBOX_DIR", DEFAULT_JD_INBOX),
+                        default=DEFAULT_JD_INBOX,
                         help="Input folder to watch/process")
     parser.add_argument("--output", "-o",
-                        default=os.getenv("OUTPUT_DIR", DEFAULT_JD_OUTPUT),
+                        default=DEFAULT_JD_OUTPUT,
                         help="Output folder for organized files (JD root)")
     parser.add_argument("--once", action="store_true", help="Process once and exit (don't watch)")
     parser.add_argument("--preprocess", "-p", action="store_true",

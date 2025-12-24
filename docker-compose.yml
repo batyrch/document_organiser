@@ -1,0 +1,62 @@
+# Document Organizer - Docker Compose Configuration
+#
+# Usage:
+#   # Start the UI
+#   docker compose up ui
+#
+#   # Run preprocessing in background
+#   docker compose up -d preprocess
+#
+#   # Run one-time processing
+#   docker compose run --rm organizer --once
+
+services:
+  # Base service configuration (not run directly)
+  base: &base
+    build:
+      context: .
+      args:
+        INSTALL_PROVIDERS: anthropic,openai
+    volumes:
+      - ${DOCUMENTS_PATH:-./documents}:/documents
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - AI_PROVIDER=${AI_PROVIDER:-keywords}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - INBOX_DIR=/documents/inbox
+      - OUTPUT_DIR=/documents/jd_documents
+    restart: unless-stopped
+
+  # Streamlit Web UI
+  ui:
+    <<: *base
+    container_name: document-organizer-ui
+    ports:
+      - "${UI_PORT:-8501}:8501"
+    command: ["ui"]
+
+  # Document preprocessor (watch mode)
+  preprocess:
+    <<: *base
+    container_name: document-organizer-preprocess
+    command: ["preprocess"]
+
+  # One-time document processing
+  organizer:
+    <<: *base
+    profiles:
+      - cli
+    command: ["--once"]
+
+  # Development with hot reload
+  dev:
+    <<: *base
+    profiles:
+      - dev
+    volumes:
+      - ${DOCUMENTS_PATH:-./documents}:/documents
+      - .:/app:ro
+    command: ["ui"]
+    ports:
+      - "${UI_PORT:-8501}:8501"

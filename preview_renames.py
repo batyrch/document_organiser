@@ -36,8 +36,11 @@ from document_organizer import (
     categorize_with_claude_code,
 )
 
-# Default JD documents path
-DEFAULT_JD_PATH = "/Users/batch/Documents/scanned_documents/jd_documents"
+# Default JD documents path (portable - uses home directory)
+DEFAULT_JD_PATH = os.getenv(
+    "OUTPUT_DIR",
+    str(Path.home() / "Documents" / "jd_documents")
+)
 
 
 def load_metadata(folder_path: Path) -> Optional[dict]:

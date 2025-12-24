@@ -1,2 +1,120 @@
-*.pyc
+# =============================================================================
+# Python
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# =============================================================================
+# Virtual Environments
+# =============================================================================
+.venv/
+venv/
+ENV/
+env/
+docling-env/
+.python-version
+
+# =============================================================================
+# Environment & Secrets
+# =============================================================================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+credentials.json
+
+# =============================================================================
+# IDE & Editors
+# =============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# =============================================================================
+# Testing & Coverage
+# =============================================================================
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.pytest_cache/
+pytest_cache/
+*.cover
+coverage.xml
+*.log
+
+# =============================================================================
+# Type Checking & Linting
+# =============================================================================
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# =============================================================================
+# OS Generated
+# =============================================================================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# =============================================================================
+# Document Organizer - Generated Files
+# =============================================================================
+# These are generated during document processing
+# Uncomment if you want to track them in git
+*.analysis.json
+*.meta.json
+_jd_ids.json
+_processed.json
+_search_index.json
+
+# Logs
+organizer.log
+*.log
+
+# =============================================================================
+# Jupyter Notebooks (if used for testing)
+# =============================================================================
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# =============================================================================
+# Distribution / Packaging
+# =============================================================================
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
