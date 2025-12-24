@@ -111,8 +111,12 @@ Examples:
 
 ## Default Paths
 
-- **JD Output**: `/Users/batch/Documents/scanned_documents/jd_documents`
-- **JD Inbox**: `/Users/batch/Documents/scanned_documents/jd_documents/00-09 System/01 Inbox`
+Paths are portable and use environment variables or `~/Documents/jd_documents` as default:
+
+- **JD Output**: `$OUTPUT_DIR` or `~/Documents/jd_documents`
+- **JD Inbox**: `$INBOX_DIR` or `~/Documents/jd_documents/00-09 System/01 Inbox`
+
+See `.env.example` for all configuration options.
 
 ## Running the Organizer
 

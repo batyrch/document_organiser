@@ -385,14 +385,24 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
+    # Portable defaults using home directory
+    default_source = os.getenv(
+        "MIGRATE_SOURCE_DIR",
+        str(Path.home() / "Documents" / "scanned_documents" / "organized")
+    )
+    default_dest = os.getenv(
+        "OUTPUT_DIR",
+        str(Path.home() / "Documents" / "jd_documents")
+    )
+
     parser.add_argument(
         "--source", "-s",
-        default="/Users/batch/Documents/scanned_documents/organized",
+        default=default_source,
         help="Source directory with existing organized files"
     )
     parser.add_argument(
         "--dest", "-d",
-        default="/Users/batch/Documents/scanned_documents/jd_documents",
+        default=default_dest,
         help="Destination directory for JD structure"
     )
     parser.add_argument(
