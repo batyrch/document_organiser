@@ -18,9 +18,10 @@ Automatically organize your scanned documents into folders with AI-powered categ
                                             └── 31.01 Vonovia Apartment Lease 2024.pdf
 ```
 
-1. **Drop files** into the inbox folder
+1. **Drop files or folders** into the inbox folder (subfolders are scanned recursively)
 2. **Docling extracts** text from PDFs, images, Word docs, etc.
 3. **AI analyzes** the content and categorizes using Johnny.Decimal
+   - Folder names are used as context hints (e.g., "Salary Slips" folder → Work/Salary & Payments)
 4. **Files are moved** to organized folders with descriptive names
 5. **Metadata files** (.meta.json) are created with tags and summaries
 
@@ -109,11 +110,14 @@ Launch the UI with `streamlit run ui.py`
 
 | Area | Categories |
 |------|------------|
-| **10-19 Finance** | Banking, Taxes, Insurance, Receipts, Investments, Bills |
-| **20-29 Medical** | Records, Insurance, Prescriptions, Dental, Vision |
+| **00-09 System** | Index, Inbox, Templates, Uncategorized |
+| **10-19 Finance** | Banking, Taxes, Insurance, Receipts, Investments, Housing |
+| **20-29 Medical** | Records, Insurance, Prescriptions, Vision, Bills |
 | **30-39 Legal** | Contracts, Property, Identity, Warranties |
-| **40-49 Work** | Employment, Expenses, Projects, Certifications |
-| **50-59 Personal** | Education, Travel, Certificates, Memberships |
+| **40-49 Work** | Employment, Expenses, Projects, Certifications, Salary & Payments |
+| **50-59 Personal** | Education, Travel, Certificates, Memberships, Operation Manual, Health and Wellbeing, IDs |
+
+> **Note:** Use **09 Uncategorized** for research papers, academic articles, or documents that don't fit other categories.
 
 ## Output Structure
 
@@ -164,3 +168,4 @@ The `.meta.json` file contains:
 3. **Failed files**: Check the `_failed` folder for documents that couldn't be processed
 4. **Metadata search**: Use `.meta.json` files to build a searchable index
 5. **Browse Mode**: Use to view and reanalyze existing organized documents
+6. **Batch import**: Drop a folder (e.g., "Salary Slips 2024") into inbox - folder name helps AI categorize

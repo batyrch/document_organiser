@@ -223,6 +223,7 @@ if "checkbox_key_version" not in st.session_state:
 def get_inbox_files(inbox_dir: str) -> list[tuple[Path, bool, dict | None]]:
     """Get list of files in inbox with their analysis status and data.
 
+    Recursively scans subfolders to find all documents.
     Returns list of (file_path, has_analysis, analysis_data) tuples.
     """
     supported = {'.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.docx', '.pptx', '.xlsx', '.txt', '.html'}
@@ -231,7 +232,8 @@ def get_inbox_files(inbox_dir: str) -> list[tuple[Path, bool, dict | None]]:
         return []
 
     files = []
-    for f in sorted(inbox.iterdir()):
+    # Use rglob to recursively find all files in subfolders
+    for f in sorted(inbox.rglob('*')):
         if f.is_file() and f.suffix.lower() in supported:
             analysis = load_analysis(str(f))
             files.append((f, analysis is not None, analysis))
@@ -372,7 +374,11 @@ def get_areas_and_categories():
     areas = []
     area_categories = {}
     for area, categories in JD_AREAS.items():
-        if area not in ["00-09 System", "90-99 Archive"]:
+        if area == "00-09 System":
+            # Only include Uncategorized from System area
+            areas.append(area)
+            area_categories[area] = ["09 Uncategorized"]
+        elif area != "90-99 Archive":
             areas.append(area)
             area_categories[area] = list(categories.keys())
     return areas, area_categories
