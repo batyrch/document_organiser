@@ -9,6 +9,7 @@ This project automatically organizes scanned documents using AI-powered categori
 ```
 document_organiser/
 ├── document_organizer.py   # Main organizer script with JD integration
+├── ui.py                   # Streamlit web UI for manual classification
 ├── preview_renames.py      # Migration preview script for renaming existing folders
 ├── migrate_to_jd.py        # Migration script for existing files
 ├── README.md               # User documentation
@@ -17,37 +18,41 @@ document_organiser/
 
 ## Johnny.Decimal System
 
-Documents are organized into a hierarchical structure:
+Documents are organized into a flat structure within categories:
 ```
-Area → Category → ID Folder → Files
-Example: 10-19 Finance/14 Receipts/14.01 Amazon Laptop Receipt 2024/20241220_amazon_laptop_receipt.pdf
+Area → Category → Files (with JD ID prefix)
+Example: 10-19 Finance/14 Receipts/14.01 Amazon Laptop Receipt 2024.pdf
 ```
 
 ## Naming Convention
 
-### Folder Names
-Format: `{JD_ID} {Issuer} {Document Type} {Year}`
+### File Names (Flat Structure)
+Format: `{JD_ID} {Issuer} {Document Type} {Year}.{ext}`
+- **JD_ID**: Johnny.Decimal ID (e.g., "14.01", "21.03")
 - **Issuer**: Organization that created/issued the document (e.g., "Charité", "TK Insurance")
 - **Document Type**: What the document IS (e.g., "Blood Test Results", "Employment Contract")
 - **Year**: Document date year
 
 Examples:
-- `21.01 Charité Blood Test Results 2024`
-- `31.05 Vonovia Apartment Lease 2025`
-- `41.03 AutoScout24 Employment Contract 2023`
+- `14.01 Amazon Laptop Receipt 2024.pdf`
+- `21.01 Charité Blood Test Results 2024.pdf`
+- `31.05 Vonovia Apartment Lease 2025.pdf`
+- `41.03 AutoScout24 Employment Contract 2023.pdf`
 
-### File Names
-Format: `{YYYYMMDD}_{issuer}_{document_type}.{ext}`
-
-Examples:
-- `20241220_charite_blood_test_results.pdf`
-- `20241115_vonovia_apartment_lease.pdf`
+### ID Assignment Rules
+- **Same issuer + same year = Same JD ID**
+  - `14.01 Amazon Laptop Receipt 2024.pdf`
+  - `14.01 Amazon Phone Case 2024.pdf` ← same ID (same issuer+year)
+- **Different issuer = New JD ID**
+  - `14.02 TK Insurance Card 2024.pdf` ← new ID
+- **Exact duplicates = Add suffix**
+  - `14.01 Amazon Laptop Receipt 2024_1.pdf`
 
 ### Naming Rules
 1. **Issuer always included** - who created/issued the document
 2. **Document type required** - what the document IS
 3. **Personal names excluded** - unless distinguishing family members' documents
-4. **Year in folder** - extracted from document date
+4. **Year in filename** - extracted from document date
 
 ### JD Areas
 - **00-09 System** - Index, Inbox, Templates
@@ -69,6 +74,25 @@ Examples:
 - `generate_filename()` - Generates filename from date + issuer + document type
 - `organize_file()` - Creates JD folder structure and moves files
 - `get_or_create_jd_id()` - Manages ID assignment per category
+
+**Preprocessing functions:**
+- `preprocess_file()` - Extract text + AI analysis, save to `.analysis.json` (no move)
+- `preprocess_inbox()` - Preprocess all files in inbox once
+- `watch_preprocess()` - Watch inbox and preprocess new files continuously
+- `get_analysis_path()` - Get path to `.analysis.json` sidecar
+- `load_analysis()` - Load existing analysis from JSON
+- `save_analysis()` - Save analysis to JSON sidecar
+- `has_analysis()` - Check if file has been analyzed
+
+### ui.py
+- Streamlit web interface for manual classification
+- `get_inbox_files()` - List files in inbox with analysis status
+- `get_folder_files()` - List files in any folder with metadata (recursive option)
+- `filter_files()` - Search/filter by metadata fields
+- `reanalyze_file()` - Delete and re-run analysis
+- `hand_spinner()` - Context manager for animated hand loading indicator
+- **Browse Mode**: Switch between Inbox and custom folder scanning
+  - Subfolder dropdown for quick navigation into subdirectories
 
 ### preview_renames.py
 - Scans existing jd_documents and proposes new names based on naming convention
@@ -106,6 +130,90 @@ python document_organizer.py --once
 python document_organizer.py --mode keywords
 ```
 
+## Preprocessing Mode (Recommended Workflow)
+
+The recommended workflow separates AI analysis from manual classification:
+
+```bash
+# Activate virtual environment
+source docling-env/bin/activate
+
+# Step 1: Preprocess - extract text + AI analysis (saves .analysis.json files)
+python document_organizer.py --preprocess
+
+# Or preprocess once (no watching)
+python document_organizer.py --preprocess --once
+
+# Step 2: Open UI to manually classify and file documents
+streamlit run ui.py
+```
+
+### How it works:
+1. **Preprocess**: Extracts text and runs AI analysis, saves to `.analysis.json` sidecar files
+2. **Documents stay in inbox** until you manually classify them
+3. **UI shows AI suggestions** pre-filled in the form
+4. **You pick the final category** and click "Process & File"
+
+### Analysis JSON format (`.analysis.json`):
+```json
+{
+  "jd_area": "20-29 Medical",
+  "jd_category": "21 Records",
+  "issuer": "Charité Hospital",
+  "document_type": "Blood Test Results",
+  "confidence": "high",
+  "summary": "...",
+  "extracted_text": "...",
+  "analyzed_at": "2024-12-23T10:30:00"
+}
+```
+
+## Web UI for Manual Classification
+
+```bash
+# Activate virtual environment
+source docling-env/bin/activate
+
+# Launch Streamlit UI
+streamlit run ui.py
+```
+
+### UI Features
+
+**File Source Modes:**
+- **Inbox Mode**: Scan default inbox folder for new documents to classify
+- **Browse Mode**: Scan any folder (with optional recursion) to view/manage existing documents
+- Toggle between modes with radio button in sidebar
+- Custom folder path input with recursive toggle
+
+**File Management:**
+- File list with metadata status (✅ has metadata, ⏳ pending)
+- Checkbox selection for bulk operations (Select All uses versioned keys for proper state sync)
+- Search/filter by metadata (issuer, document_type, tags, category, text)
+- Navigation (Prev/Next buttons, file counter)
+
+**Document View:**
+- PDF preview (embedded viewer)
+- Image preview
+- Extracted text display tab
+- AI analysis panel with all metadata fields
+
+**Classification:**
+- AI suggestion pre-filled in form
+- Manual override for area, category, issuer, document type, date, tags
+- Re-analyze button to re-run AI on current file
+
+**Bulk Actions:**
+- Select All / Clear Selection
+- Move Selected - move multiple files to chosen category
+- Reanalyze Selected - re-run AI on selected files
+- Delete Selected - remove selected files
+
+**Loading Animation:**
+- Custom hand animation (CSS-based, inspired by codepen.io/r4ms3s/pen/XJqeKB)
+- `hand_spinner()` context manager replaces `st.spinner()` throughout the app
+- Shows animated tapping fingers during all processing operations
+
 ## Running Migration
 
 ```bash
@@ -127,6 +235,12 @@ python preview_renames.py --output renames_report.md
 
 # Re-analyze with AI (reads .meta.json, uses Claude Code to propose names)
 python preview_renames.py --reanalyze
+
+# Dry run - see what would be renamed without doing it
+python preview_renames.py --reanalyze --execute --dry-run
+
+# Actually rename the folders
+python preview_renames.py --reanalyze --execute
 ```
 
 ### How `--reanalyze` works:
@@ -161,3 +275,4 @@ Each document gets a `.meta.json` sidecar file:
 - pytesseract (OCR fallback)
 - python-dotenv
 - Pillow
+- streamlit (web UI)

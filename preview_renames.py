@@ -270,6 +270,30 @@ def detect_issue(descriptor: str, metadata: Optional[dict]) -> str:
     return "Missing issuer/document type"
 
 
+def execute_renames(proposals: list, dry_run: bool = False) -> dict:
+    """Execute the proposed folder renames."""
+    results = {"success": [], "failed": []}
+
+    for p in proposals:
+        old_path = Path(p["current_path"])
+        new_path = old_path.parent / p["proposed_name"]
+
+        if dry_run:
+            print(f"  [DRY RUN] {old_path.name} → {new_path.name}")
+            results["success"].append(p)
+            continue
+
+        try:
+            old_path.rename(new_path)
+            print(f"  ✓ {old_path.name} → {new_path.name}")
+            results["success"].append(p)
+        except Exception as e:
+            print(f"  ✗ {old_path.name}: {e}")
+            results["failed"].append({**p, "error": str(e)})
+
+    return results
+
+
 def generate_report(proposals: list, output_path: Optional[str] = None) -> str:
     """Generate a markdown report of proposed renames."""
     lines = [
@@ -339,6 +363,16 @@ def main():
         default="claude-code",
         help="AI mode for reanalysis (default: claude-code)"
     )
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="Actually perform the renames (default: preview only)"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be renamed without actually doing it"
+    )
 
     args = parser.parse_args()
 
@@ -352,13 +386,26 @@ def main():
         print("No folders need renaming!")
         return
 
-    report = generate_report(proposals, args.output)
+    if args.execute:
+        # Execute mode - actually rename the folders
+        mode_str = "[DRY RUN] " if args.dry_run else ""
+        print(f"\n{mode_str}Executing {len(proposals)} renames...")
+        results = execute_renames(proposals, dry_run=args.dry_run)
+        print(f"\n{mode_str}Renamed: {len(results['success'])}")
+        if results["failed"]:
+            print(f"Failed: {len(results['failed'])}")
+            for f in results["failed"]:
+                print(f"  - {f['current_name']}: {f.get('error', 'unknown error')}")
+    else:
+        # Preview mode - generate report
+        report = generate_report(proposals, args.output)
 
-    if not args.output:
-        print(report)
+        if not args.output:
+            print(report)
 
-    print(f"\nFound {len(proposals)} folders that could be renamed.")
-    print("Review the report and run the migration script when ready.")
+        print(f"\nFound {len(proposals)} folders that could be renamed.")
+        print("Run with --execute to perform the renames.")
+        print("Run with --execute --dry-run to preview what would happen.")
 
 
 if __name__ == "__main__":

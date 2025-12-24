@@ -450,45 +450,63 @@ def slugify(text: str, max_length: int = 30) -> str:
     return slug[:max_length] if slug else "unknown"
 
 
-def generate_filename(original_name: str, analysis: dict) -> str:
+def generate_filename(original_name: str, analysis: dict, jd_id: str = "", year: str = "") -> str:
     """Generate a descriptive filename based on analysis.
 
-    Format: YYYYMMDD_{issuer}_{document_type}.ext
-    Example: 20241220_charite_blood_test_results.pdf
+    Format: {JD_ID} {Issuer} {Document_Type} {Year}.ext
+    Example: 14.01 Amazon Laptop Receipt 2024.pdf
     """
     suffix = Path(original_name).suffix
-
-    # Use date if found, format as YYYYMMDD
-    date_mentioned = analysis.get("date_mentioned", "")
-    if date_mentioned:
-        date_part = date_mentioned.replace("-", "")
-    else:
-        date_part = datetime.now().strftime("%Y%m%d")
 
     # Get issuer and document type from analysis
     issuer = analysis.get("issuer", "")
     document_type = analysis.get("document_type", "")
+    subject_person = analysis.get("subject_person")
 
-    # Build name parts
-    issuer_slug = slugify(issuer, 20) if issuer else ""
-    doc_type_slug = slugify(document_type, 25) if document_type else ""
+    # Clean up issuer - remove trailing punctuation, normalize spaces
+    if issuer:
+        issuer = issuer.strip().rstrip(".,;:")
+        # Replace problematic filesystem chars
+        issuer = issuer.replace("/", "_").replace("\\", "_").replace(":", "_")
 
-    # Combine parts, handling missing values
-    if issuer_slug and doc_type_slug:
-        name_part = f"{issuer_slug}_{doc_type_slug}"
-    elif doc_type_slug:
-        name_part = doc_type_slug
-    elif issuer_slug:
-        name_part = issuer_slug
+    # Clean up document type
+    if document_type:
+        document_type = document_type.strip().rstrip(".,;:")
+        document_type = document_type.replace("/", "_").replace("\\", "_").replace(":", "_")
+
+    # Build the descriptor parts
+    parts = []
+    if issuer:
+        parts.append(issuer)
+    if document_type:
+        parts.append(document_type)
+
+    # Add subject person if it's someone other than the system owner
+    if subject_person and subject_person.lower() not in ["null", "none", ""]:
+        parts.append(f"({subject_person})")
+
+    if parts:
+        descriptor = " ".join(parts)
     else:
-        # Fallback to tags or original filename
-        tags = analysis.get("tags", [])
-        if tags:
-            name_part = "_".join(slugify(t, 15) for t in tags[:2])
-        else:
-            name_part = slugify(Path(original_name).stem, 30)
+        # Fallback: use original filename stem
+        stem = Path(original_name).stem
+        # Remove date prefix if present (e.g., "20241220_something")
+        if len(stem) > 8 and stem[:8].isdigit():
+            stem = stem[9:] if len(stem) > 9 else stem
+        descriptor = stem.replace("_", " ").title()
 
-    return f"{date_part}_{name_part}{suffix}"
+    # Limit descriptor length for filesystem compatibility
+    descriptor = descriptor[:50]
+
+    # Use provided year or extract from analysis
+    if not year:
+        year = extract_year(analysis)
+
+    # Build final filename: "{JD_ID} {Descriptor} {Year}.ext"
+    if jd_id:
+        return f"{jd_id} {descriptor} {year}{suffix}"
+    else:
+        return f"{descriptor} {year}{suffix}"
 
 
 def create_metadata_file(file_path: str, analysis: dict, original_name: str, jd_id: str, extracted_text: str = ""):
@@ -577,10 +595,10 @@ def extract_year(analysis: dict) -> str:
 
 
 def organize_file(file_path: str, output_dir: str, analysis: dict, extracted_text: str = "") -> str:
-    """Move file to Johnny.Decimal folder structure.
+    """Move file to Johnny.Decimal folder structure (flat).
 
-    Structure: output/Area/Category/ID {Issuer} {DocType} Year/filename
-    Example: output/10-19 Finance/14 Receipts/14.01 Amazon Laptop Receipt 2024/20241220_amazon_laptop_receipt.pdf
+    Structure: output/Area/Category/{JD_ID} {Issuer} {DocType} {Year}.ext
+    Example: output/10-19 Finance/14 Receipts/14.01 Amazon Laptop Receipt 2024.pdf
     """
     jd_area = analysis.get("jd_area", "50-59 Personal")
     jd_category = analysis.get("jd_category", "54 Memberships")
@@ -590,21 +608,18 @@ def organize_file(file_path: str, output_dir: str, analysis: dict, extracted_tex
     folder_descriptor = generate_folder_descriptor(analysis, original_name)
     year = extract_year(analysis)
 
-    # Get or create JD ID for this descriptor+year combination
+    # Get or create JD ID for this issuer+year combination
     jd_id = get_or_create_jd_id(output_dir, jd_category, folder_descriptor, year)
 
-    # Create ID folder name: "14.01 Amazon Laptop Receipt 2024"
-    id_folder_name = f"{jd_id} {folder_descriptor} {year}"
-
-    # Create folder structure: output/Area/Category/ID Folder/
-    dest_dir = Path(output_dir) / jd_area / jd_category / id_folder_name
+    # Create folder structure: output/Area/Category/ (flat, no sub-folder per document)
+    dest_dir = Path(output_dir) / jd_area / jd_category
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    # Generate new filename
-    new_name = generate_filename(original_name, analysis)
+    # Generate new filename with JD ID: "14.01 Amazon Laptop Receipt 2024.pdf"
+    new_name = generate_filename(original_name, analysis, jd_id, year)
     dest_path = dest_dir / new_name
 
-    # Handle duplicates
+    # Handle duplicates - add suffix
     counter = 1
     while dest_path.exists():
         stem = Path(new_name).stem
@@ -754,6 +769,179 @@ def mark_file_processed(file_hash: str, original_name: str, dest_path: str, proc
         "destination": dest_path,
         "processed_at": datetime.now().isoformat()
     }
+
+
+# ==============================================================================
+# PREPROCESSING (extract + analyze, but don't move)
+# ==============================================================================
+
+def get_analysis_path(file_path: str) -> Path:
+    """Get path to the analysis JSON file for a document."""
+    return Path(file_path).with_suffix(Path(file_path).suffix + ".analysis.json")
+
+
+def has_analysis(file_path: str) -> bool:
+    """Check if a document already has an analysis file."""
+    return get_analysis_path(file_path).exists()
+
+
+def load_analysis(file_path: str) -> dict | None:
+    """Load existing analysis for a document."""
+    analysis_path = get_analysis_path(file_path)
+    if analysis_path.exists():
+        try:
+            with open(analysis_path, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return None
+    return None
+
+
+def save_analysis(file_path: str, analysis: dict, extracted_text: str):
+    """Save analysis to a sidecar JSON file."""
+    analysis_path = get_analysis_path(file_path)
+    data = {
+        **analysis,
+        "extracted_text": extracted_text,
+        "original_filename": Path(file_path).name,
+        "analyzed_at": datetime.now().isoformat(),
+    }
+    with open(analysis_path, 'w') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+def preprocess_file(file_path: str, jd_areas: dict = None, mode: str = "claude-code") -> dict:
+    """Extract text and generate AI analysis, saving to .analysis.json sidecar.
+
+    Does NOT move the file - leaves it in inbox for manual classification via UI.
+
+    mode: "claude-code" (uses Max subscription), "api" (uses ANTHROPIC_API_KEY), "keywords" (no AI)
+    """
+    if jd_areas is None:
+        jd_areas = JD_AREAS
+
+    print(f"\n📄 Preprocessing: {Path(file_path).name}")
+
+    # Check if already analyzed
+    if has_analysis(file_path):
+        print(f"  ⏭️  Already has analysis, skipping")
+        return {"success": True, "skipped": True, "file": file_path}
+
+    # Step 1: Extract text
+    print("  📖 Extracting text...")
+    result = extract_text_with_docling(file_path)
+
+    if not result["success"]:
+        print(f"  ⚠️  Docling failed, trying fallback: {result.get('error', 'unknown')}")
+        result = extract_text_fallback(file_path)
+
+    if not result["success"] or not result["text"].strip():
+        print(f"  ❌ Could not extract text from file")
+        return {"success": False, "error": "Text extraction failed", "file": file_path}
+
+    extracted_text = result["text"]
+    print(f"  ✅ Extracted {len(extracted_text)} characters")
+
+    # Step 2: Get AI analysis
+    print("  🤖 Analyzing content...")
+    analysis = None
+
+    if mode == "claude-code":
+        analysis = categorize_with_claude_code(extracted_text, jd_areas)
+        if analysis is None:
+            print("  ⚠️  Falling back to keyword matching")
+            analysis = categorize_with_keywords(extracted_text, jd_areas)
+    elif mode == "api":
+        analysis = categorize_with_llm(extracted_text, jd_areas)
+    else:
+        analysis = categorize_with_keywords(extracted_text, jd_areas)
+
+    jd_area = analysis.get('jd_area', '50-59 Personal')
+    jd_category = analysis.get('jd_category', '54 Memberships')
+    print(f"  📁 AI suggests: {jd_area} / {jd_category}")
+    print(f"  🏷️  Tags: {', '.join(analysis.get('tags', [])[:5])}")
+
+    # Step 3: Save analysis (but don't move file)
+    save_analysis(file_path, analysis, extracted_text)
+    print(f"  💾 Saved analysis to: {get_analysis_path(file_path).name}")
+
+    return {
+        "success": True,
+        "file": file_path,
+        "analysis": analysis,
+    }
+
+
+def preprocess_inbox(inbox_dir: str, jd_areas: dict = None, mode: str = "claude-code") -> list:
+    """Preprocess all files in inbox - extract text and generate AI analysis."""
+    if jd_areas is None:
+        jd_areas = JD_AREAS
+
+    print(f"\n📥 Preprocessing inbox: {inbox_dir}")
+    print(f"🤖 Mode: {mode}\n")
+
+    supported_extensions = {'.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.docx', '.pptx', '.xlsx', '.txt', '.html'}
+    inbox = Path(inbox_dir)
+
+    results = []
+    for file_path in inbox.iterdir():
+        if not file_path.is_file():
+            continue
+        if file_path.suffix.lower() not in supported_extensions:
+            continue
+        # Skip analysis files themselves
+        if file_path.name.endswith('.analysis.json'):
+            continue
+
+        result = preprocess_file(str(file_path), jd_areas, mode)
+        results.append(result)
+
+    # Summary
+    successful = sum(1 for r in results if r.get("success"))
+    skipped = sum(1 for r in results if r.get("skipped"))
+    print(f"\n{'='*50}")
+    print(f"✅ Preprocessed {successful}/{len(results)} files")
+    if skipped:
+        print(f"⏭️  Skipped {skipped} already analyzed files")
+
+    return results
+
+
+def watch_preprocess(inbox_dir: str, jd_areas: dict = None, mode: str = "claude-code", interval: int = 5):
+    """Watch inbox and preprocess new files (extract + analyze only, no moving)."""
+    if jd_areas is None:
+        jd_areas = JD_AREAS
+
+    print(f"\n👁️  Watching folder for preprocessing: {inbox_dir}")
+    print(f"🤖 Mode: {mode}")
+    print(f"🔄 Checking every {interval} seconds (Ctrl+C to stop)")
+    print(f"📝 Files will be analyzed but NOT moved - use UI to classify\n")
+
+    supported_extensions = {'.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.docx', '.pptx', '.xlsx', '.txt', '.html'}
+
+    while True:
+        try:
+            inbox = Path(inbox_dir)
+
+            for file_path in inbox.iterdir():
+                if not file_path.is_file():
+                    continue
+                if file_path.suffix.lower() not in supported_extensions:
+                    continue
+                # Skip analysis files
+                if file_path.name.endswith('.analysis.json'):
+                    continue
+                # Skip if already analyzed
+                if has_analysis(str(file_path)):
+                    continue
+
+                preprocess_file(str(file_path), jd_areas, mode)
+
+            time.sleep(interval)
+
+        except KeyboardInterrupt:
+            print("\n\n👋 Stopping watcher...")
+            break
 
 
 # ==============================================================================
@@ -952,7 +1140,13 @@ Documents are organized into a hierarchical structure:
 Example: 10-19 Finance/14 Receipts/14.01 Amazon 2024/2024-12-20_laptop.pdf
 
 Examples:
-  # Use Claude Code with your Max subscription (recommended)
+  # Preprocess only - extract text + AI analysis, save .json (use with UI)
+  python document_organizer.py --preprocess
+
+  # Preprocess once (no watching)
+  python document_organizer.py --preprocess --once
+
+  # Full auto-processing (extract, analyze, AND move files)
   python document_organizer.py --inbox ./inbox --output ./jd_documents
 
   # Use API key instead
@@ -985,6 +1179,8 @@ JD Areas:
                         default=os.getenv("OUTPUT_DIR", DEFAULT_JD_OUTPUT),
                         help="Output folder for organized files (JD root)")
     parser.add_argument("--once", action="store_true", help="Process once and exit (don't watch)")
+    parser.add_argument("--preprocess", "-p", action="store_true",
+                        help="Preprocess only: extract text + AI analysis, save .json (for use with UI)")
     parser.add_argument("--mode", "-m", choices=["claude-code", "api", "keywords"],
                         default="claude-code", help="Categorization mode (default: claude-code)")
     parser.add_argument("--interval", type=int, default=5, help="Watch interval in seconds (default: 5)")
@@ -1002,11 +1198,22 @@ JD Areas:
     # Validate required paths
     if not args.inbox:
         parser.error("--inbox is required (or set INBOX_DIR in .env)")
+
+    # Create inbox directory
+    Path(args.inbox).mkdir(parents=True, exist_ok=True)
+
+    # Preprocess mode: extract + analyze only, don't move files
+    if args.preprocess:
+        if args.once:
+            preprocess_inbox(args.inbox, JD_AREAS, mode)
+        else:
+            watch_preprocess(args.inbox, JD_AREAS, mode, args.interval)
+        return
+
+    # Full processing mode: requires output directory
     if not args.output:
         parser.error("--output is required (or set OUTPUT_DIR in .env)")
 
-    # Create directories
-    Path(args.inbox).mkdir(parents=True, exist_ok=True)
     Path(args.output).mkdir(parents=True, exist_ok=True)
 
     if args.once:
