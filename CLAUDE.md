@@ -55,12 +55,12 @@ Examples:
 4. **Year in filename** - extracted from document date
 
 ### JD Areas
-- **00-09 System** - Index, Inbox, Templates
-- **10-19 Finance** - Banking, Taxes, Insurance, Receipts, Investments, Bills
-- **20-29 Medical** - Records, Insurance, Prescriptions, Dental, Vision
+- **00-09 System** - Index, Inbox, Templates, Uncategorized
+- **10-19 Finance** - Banking, Taxes, Insurance, Receipts, Investments, Housing
+- **20-29 Medical** - Records, Insurance, Prescriptions, Vision, Bills
 - **30-39 Legal** - Contracts, Property, Identity, Warranties
-- **40-49 Work** - Employment, Expenses, Projects, Certifications
-- **50-59 Personal** - Education, Travel, Certificates, Memberships
+- **40-49 Work** - Employment, Expenses, Projects, Certifications, Salary & Payments
+- **50-59 Personal** - Education, Travel, Certificates, Memberships, Operation Manual, Health and Wellbeing, IDs
 - **90-99 Archive** - By year (2024, 2023, etc.)
 
 ## Key Files
@@ -70,19 +70,25 @@ Examples:
 - `categorize_with_keywords()` - Keyword-based JD categorization
 - `categorize_with_claude_code()` - Claude CLI categorization
 - `categorize_with_llm()` - Anthropic API categorization
-- `generate_folder_descriptor()` - Generates folder name from issuer + document type
-- `generate_filename()` - Generates filename from date + issuer + document type
-- `organize_file()` - Creates JD folder structure and moves files
-- `get_or_create_jd_id()` - Manages ID assignment per category
+- `generate_folder_descriptor()` - Generates descriptor from issuer + document type
+- `generate_filename()` - Generates filename: `{JD_ID} {Issuer} {DocType} {Year}.ext`
+- `organize_file()` - Creates flat JD structure (Area/Category/files) and moves files
+- `get_or_create_jd_id()` - Manages ID assignment per issuer+year combination
 
 **Preprocessing functions:**
 - `preprocess_file()` - Extract text + AI analysis, save to `.analysis.json` (no move)
-- `preprocess_inbox()` - Preprocess all files in inbox once
+- `preprocess_inbox()` - Preprocess all files in inbox once (recursive, with folder hints)
 - `watch_preprocess()` - Watch inbox and preprocess new files continuously
+- `get_folder_hint()` - Extract subfolder name to use as context for AI categorization
 - `get_analysis_path()` - Get path to `.analysis.json` sidecar
 - `load_analysis()` - Load existing analysis from JSON
 - `save_analysis()` - Save analysis to JSON sidecar
 - `has_analysis()` - Check if file has been analyzed
+
+**Subfolder Support:**
+- Inbox scanning is recursive - files in subfolders are found automatically
+- Folder names are passed to AI as context hints (e.g., "Salary Slips" folder → 45 Salary & Payments)
+- `folder_hint` parameter in `categorize_with_claude_code()` and `categorize_with_llm()`
 
 ### ui.py
 - Streamlit web interface for manual classification

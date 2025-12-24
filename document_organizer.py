@@ -89,6 +89,7 @@ JD_AREAS = {
         "00 Index": {"keywords": []},
         "01 Inbox": {"keywords": []},
         "02 Templates": {"keywords": ["template"]},
+        "09 Uncategorized": {"keywords": []},
     },
     "10-19 Finance": {
         "11 Banking": {"keywords": ["bank", "account", "transfer", "statement", "balance", "sparkasse", "commerzbank"]},
@@ -96,14 +97,14 @@ JD_AREAS = {
         "13 Insurance": {"keywords": ["insurance", "versicherung", "policy", "premium", "coverage", "claim"]},
         "14 Receipts": {"keywords": ["receipt", "quittung", "kassenbon", "purchase", "bought", "paid"]},
         "15 Investments": {"keywords": ["investment", "stock", "portfolio", "dividend", "brokerage"]},
-        "16 Bills": {"keywords": ["invoice", "rechnung", "bill", "payment", "due", "amount"]},
+        "16 Housing": {"keywords": ["rent", "miete", "wohnung", "apartment", "housing", "utility", "strom", "gas", "internet"]},
     },
     "20-29 Medical": {
         "21 Records": {"keywords": ["medical", "doctor", "patient", "diagnosis", "hospital", "clinic", "arzt", "krankenhaus", "lab", "blood", "test"]},
         "22 Insurance": {"keywords": ["health insurance", "krankenversicherung", "aok", "tk", "barmer"]},
         "23 Prescriptions": {"keywords": ["prescription", "rezept", "medication", "pharmacy", "apotheke"]},
-        "24 Dental": {"keywords": ["dental", "zahnarzt", "tooth", "dentist"]},
-        "25 Vision": {"keywords": ["eye", "vision", "optiker", "glasses", "brille"]},
+        "25 Vision": {"keywords": ["eye", "vision", "optiker", "glasses", "brille", "dental", "zahnarzt", "tooth", "dentist"]},
+        "26 Bills": {"keywords": ["medical bill", "arztrechnung", "hospital bill", "healthcare cost"]},
     },
     "30-39 Legal": {
         "31 Contracts": {"keywords": ["contract", "vertrag", "agreement", "vereinbarung", "signed", "parties", "terms"]},
@@ -112,16 +113,20 @@ JD_AREAS = {
         "34 Warranties": {"keywords": ["warranty", "garantie", "guarantee"]},
     },
     "40-49 Work": {
-        "41 Employment": {"keywords": ["employment", "arbeit", "job", "salary", "gehalt", "arbeitsvertrag", "hr", "payslip"]},
+        "41 Employment": {"keywords": ["employment", "arbeit", "job", "arbeitsvertrag", "hr", "contract"]},
         "42 Expenses": {"keywords": ["expense", "reimbursement", "spesen", "erstattung"]},
         "43 Projects": {"keywords": ["project", "projekt", "report", "bericht", "presentation", "documentation"]},
         "44 Certifications": {"keywords": ["certification", "zertifikat", "professional", "training"]},
+        "45 Salary & Payments": {"keywords": ["salary", "gehalt", "payslip", "lohnabrechnung", "payment", "bonus", "compensation"]},
     },
     "50-59 Personal": {
         "51 Education": {"keywords": ["education", "school", "schule", "university", "universität", "degree", "diploma", "course", "kurs", "grade"]},
         "52 Travel": {"keywords": ["travel", "reise", "flight", "flug", "hotel", "booking", "itinerary"]},
         "53 Certificates": {"keywords": ["certificate", "urkunde", "marriage", "heirat"]},
         "54 Memberships": {"keywords": ["membership", "mitgliedschaft", "club", "verein", "subscription"]},
+        "55 Operation Manual": {"keywords": ["manual", "anleitung", "instruction", "guide", "handbuch", "user guide"]},
+        "56 Health and Wellbeing": {"keywords": ["health", "wellness", "fitness", "nutrition", "exercise", "mental health"]},
+        "57 IDs": {"keywords": ["id card", "identification", "badge", "employee id", "student id"]},
     },
     "90-99 Archive": {
         "91 2024": {"keywords": []},
@@ -262,8 +267,11 @@ def categorize_with_keywords(text: str, jd_areas: dict = None) -> dict:
     }
 
 
-def categorize_with_claude_code(text: str, jd_areas: dict = None) -> dict:
-    """Use Claude Code CLI (works with Max subscription) to categorize using Johnny.Decimal."""
+def categorize_with_claude_code(text: str, jd_areas: dict = None, folder_hint: str = None) -> dict:
+    """Use Claude Code CLI (works with Max subscription) to categorize using Johnny.Decimal.
+
+    folder_hint: Optional folder name that provides context (e.g., "Salary Slips 2024")
+    """
     import subprocess
 
     if jd_areas is None:
@@ -276,14 +284,26 @@ def categorize_with_claude_code(text: str, jd_areas: dict = None) -> dict:
     # Build JD structure for prompt
     jd_structure = {}
     for area, categories in jd_areas.items():
-        if area not in ["00-09 System", "90-99 Archive"]:
+        if area == "00-09 System":
+            # Only include Uncategorized from System area
+            jd_structure[area] = ["09 Uncategorized"]
+        elif area != "90-99 Archive":
             jd_structure[area] = list(categories.keys())
+
+    # Add folder context if provided
+    folder_context = ""
+    if folder_hint:
+        folder_context = f"""
+IMPORTANT CONTEXT: This file came from a folder named "{folder_hint}".
+The folder name is a strong hint about what type of documents these are (e.g., "Salary Slips" suggests employment/payslips, "Medical Reports" suggests medical records).
+Use this context to help categorize the document appropriately.
+"""
 
     prompt = f"""You are a document categorization assistant using the Johnny.Decimal system.
 
 Available Johnny.Decimal areas and categories:
 {json.dumps(jd_structure, indent=2)}
-
+{folder_context}
 Analyze this document and categorize it.
 
 Document content:
@@ -296,6 +316,7 @@ IMPORTANT naming rules:
 - "issuer" should be the organization/entity that CREATED or ISSUED the document (e.g., "Charité Hospital", "TK Insurance", "AutoScout24")
 - Do NOT use the document subject's personal name as issuer (e.g., if it's a medical report FOR "John Smith", the issuer is the hospital, not John Smith)
 - "subject_person" should ONLY be filled if the document is about someone OTHER than the system owner (e.g., spouse's documents)
+- Use "00-09 System" / "09 Uncategorized" for research papers, academic articles, miscellaneous documents, or anything that doesn't clearly fit into the other categories
 
 Respond with ONLY valid JSON in this exact format (no other text):
 {{"jd_area": "one of the areas like 10-19 Finance", "jd_category": "one of the categories like 14 Receipts", "document_type": "specific type like Blood Test Results or Employment Contract", "issuer": "organization that created/issued the document", "subject_person": "only if document is about someone other than system owner, otherwise null", "tags": ["tag1", "tag2"], "confidence": "high/medium/low", "summary": "One sentence summary", "date_mentioned": "YYYY-MM-DD or null", "entities": ["organization names", "relevant identifiers"]}}"""
@@ -336,8 +357,11 @@ Respond with ONLY valid JSON in this exact format (no other text):
         return None
 
 
-def categorize_with_llm(text: str, jd_areas: dict = None, api_key: Optional[str] = None) -> dict:
-    """Use Claude API to categorize using Johnny.Decimal."""
+def categorize_with_llm(text: str, jd_areas: dict = None, api_key: Optional[str] = None, folder_hint: str = None) -> dict:
+    """Use Claude API to categorize using Johnny.Decimal.
+
+    folder_hint: Optional folder name that provides context (e.g., "Salary Slips 2024")
+    """
 
     if jd_areas is None:
         jd_areas = JD_AREAS
@@ -361,14 +385,26 @@ def categorize_with_llm(text: str, jd_areas: dict = None, api_key: Optional[str]
         # Build JD structure for prompt
         jd_structure = {}
         for area, categories in jd_areas.items():
-            if area not in ["00-09 System", "90-99 Archive"]:
+            if area == "00-09 System":
+                # Only include Uncategorized from System area
+                jd_structure[area] = ["09 Uncategorized"]
+            elif area != "90-99 Archive":
                 jd_structure[area] = list(categories.keys())
+
+        # Add folder context if provided
+        folder_context = ""
+        if folder_hint:
+            folder_context = f"""
+IMPORTANT CONTEXT: This file came from a folder named "{folder_hint}".
+The folder name is a strong hint about what type of documents these are (e.g., "Salary Slips" suggests employment/payslips, "Medical Reports" suggests medical records).
+Use this context to help categorize the document appropriately.
+"""
 
         prompt = f"""You are a document categorization assistant using the Johnny.Decimal system.
 
 Available Johnny.Decimal areas and categories:
 {json.dumps(jd_structure, indent=2)}
-
+{folder_context}
 Analyze this document and categorize it.
 
 Document content:
@@ -381,6 +417,7 @@ IMPORTANT naming rules:
 - "issuer" should be the organization/entity that CREATED or ISSUED the document (e.g., "Charité Hospital", "TK Insurance", "AutoScout24")
 - Do NOT use the document subject's personal name as issuer (e.g., if it's a medical report FOR "John Smith", the issuer is the hospital, not John Smith)
 - "subject_person" should ONLY be filled if the document is about someone OTHER than the system owner (e.g., spouse's documents)
+- Use "00-09 System" / "09 Uncategorized" for research papers, academic articles, miscellaneous documents, or anything that doesn't clearly fit into the other categories
 
 Respond with ONLY valid JSON in this exact format:
 {{
@@ -853,17 +890,20 @@ def save_analysis(file_path: str, analysis: dict, extracted_text: str):
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
-def preprocess_file(file_path: str, jd_areas: dict = None, mode: str = "claude-code") -> dict:
+def preprocess_file(file_path: str, jd_areas: dict = None, mode: str = "claude-code", folder_hint: str = None) -> dict:
     """Extract text and generate AI analysis, saving to .analysis.json sidecar.
 
     Does NOT move the file - leaves it in inbox for manual classification via UI.
 
     mode: "claude-code" (uses Max subscription), "api" (uses ANTHROPIC_API_KEY), "keywords" (no AI)
+    folder_hint: Optional folder name that provides context for categorization
     """
     if jd_areas is None:
         jd_areas = JD_AREAS
 
     print(f"\n📄 Preprocessing: {Path(file_path).name}")
+    if folder_hint:
+        print(f"  📁 Folder context: {folder_hint}")
 
     # Check if already analyzed
     if has_analysis(file_path):
@@ -890,12 +930,12 @@ def preprocess_file(file_path: str, jd_areas: dict = None, mode: str = "claude-c
     analysis = None
 
     if mode == "claude-code":
-        analysis = categorize_with_claude_code(extracted_text, jd_areas)
+        analysis = categorize_with_claude_code(extracted_text, jd_areas, folder_hint=folder_hint)
         if analysis is None:
             print("  ⚠️  Falling back to keyword matching")
             analysis = categorize_with_keywords(extracted_text, jd_areas)
     elif mode == "api":
-        analysis = categorize_with_llm(extracted_text, jd_areas)
+        analysis = categorize_with_llm(extracted_text, jd_areas, folder_hint=folder_hint)
     else:
         analysis = categorize_with_keywords(extracted_text, jd_areas)
 
@@ -915,19 +955,41 @@ def preprocess_file(file_path: str, jd_areas: dict = None, mode: str = "claude-c
     }
 
 
+def get_folder_hint(file_path: Path, inbox_dir: Path) -> str | None:
+    """Get folder hint for a file if it's in a subfolder of the inbox.
+
+    Returns the immediate parent folder name if the file is in a subfolder,
+    None if the file is directly in the inbox.
+    """
+    try:
+        relative = file_path.relative_to(inbox_dir)
+        parts = relative.parts
+        # If file is in a subfolder, return the subfolder name
+        if len(parts) > 1:
+            return parts[0]  # First subfolder name
+    except ValueError:
+        pass
+    return None
+
+
 def preprocess_inbox(inbox_dir: str, jd_areas: dict = None, mode: str = "claude-code") -> list:
-    """Preprocess all files in inbox - extract text and generate AI analysis."""
+    """Preprocess all files in inbox - extract text and generate AI analysis.
+
+    Recursively scans subfolders and uses folder names as context hints for categorization.
+    """
     if jd_areas is None:
         jd_areas = JD_AREAS
 
     print(f"\n📥 Preprocessing inbox: {inbox_dir}")
-    print(f"🤖 Mode: {mode}\n")
+    print(f"🤖 Mode: {mode}")
+    print(f"📂 Scanning subfolders recursively\n")
 
     supported_extensions = {'.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.docx', '.pptx', '.xlsx', '.txt', '.html'}
     inbox = Path(inbox_dir)
 
     results = []
-    for file_path in inbox.iterdir():
+    # Use rglob to recursively find all files
+    for file_path in inbox.rglob('*'):
         if not file_path.is_file():
             continue
         if file_path.suffix.lower() not in supported_extensions:
@@ -936,7 +998,10 @@ def preprocess_inbox(inbox_dir: str, jd_areas: dict = None, mode: str = "claude-
         if file_path.name.endswith('.analysis.json'):
             continue
 
-        result = preprocess_file(str(file_path), jd_areas, mode)
+        # Get folder hint if file is in a subfolder
+        folder_hint = get_folder_hint(file_path, inbox)
+
+        result = preprocess_file(str(file_path), jd_areas, mode, folder_hint=folder_hint)
         results.append(result)
 
     # Summary
@@ -951,12 +1016,16 @@ def preprocess_inbox(inbox_dir: str, jd_areas: dict = None, mode: str = "claude-
 
 
 def watch_preprocess(inbox_dir: str, jd_areas: dict = None, mode: str = "claude-code", interval: int = 5):
-    """Watch inbox and preprocess new files (extract + analyze only, no moving)."""
+    """Watch inbox and preprocess new files (extract + analyze only, no moving).
+
+    Recursively scans subfolders and uses folder names as context hints.
+    """
     if jd_areas is None:
         jd_areas = JD_AREAS
 
     print(f"\n👁️  Watching folder for preprocessing: {inbox_dir}")
     print(f"🤖 Mode: {mode}")
+    print(f"📂 Scanning subfolders recursively")
     print(f"🔄 Checking every {interval} seconds (Ctrl+C to stop)")
     print(f"📝 Files will be analyzed but NOT moved - use UI to classify\n")
 
@@ -966,7 +1035,8 @@ def watch_preprocess(inbox_dir: str, jd_areas: dict = None, mode: str = "claude-
         try:
             inbox = Path(inbox_dir)
 
-            for file_path in inbox.iterdir():
+            # Use rglob to recursively find all files
+            for file_path in inbox.rglob('*'):
                 if not file_path.is_file():
                     continue
                 if file_path.suffix.lower() not in supported_extensions:
@@ -978,7 +1048,10 @@ def watch_preprocess(inbox_dir: str, jd_areas: dict = None, mode: str = "claude-
                 if has_analysis(str(file_path)):
                     continue
 
-                preprocess_file(str(file_path), jd_areas, mode)
+                # Get folder hint if file is in a subfolder
+                folder_hint = get_folder_hint(file_path, inbox)
+
+                preprocess_file(str(file_path), jd_areas, mode, folder_hint=folder_hint)
 
             time.sleep(interval)
 
