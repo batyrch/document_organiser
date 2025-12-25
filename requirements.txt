@@ -11,9 +11,6 @@ pillow>=10.0.0
 docling>=2.0.0
 pdfplumber>=0.11.0
 
-# OCR (optional - install tesseract separately)
-pytesseract>=0.3.10
-
 # AI providers (install as needed)
 anthropic>=0.40.0          # For Claude API
 openai>=1.0.0              # For OpenAI API

@@ -15,8 +15,15 @@ document_organiser/
 ├── migrate_to_jd.py        # Migration script for existing files
 ├── config.yaml             # Project settings (paths, mode, logging)
 ├── config.local.yaml       # Local overrides (gitignored, optional)
+├── requirements.txt        # Python dependencies
 ├── README.md               # User documentation
-└── .env                    # API keys only (ANTHROPIC_API_KEY)
+├── .env                    # API keys only (ANTHROPIC_API_KEY)
+├── pwa/                    # Landing page source files
+│   ├── index.html          # Main landing page
+│   └── privacy.html        # Privacy policy
+└── docs/                   # GitHub Pages deployment folder
+    ├── index.html          # Copy of pwa/index.html
+    └── privacy.html        # Copy of pwa/privacy.html
 ```
 
 ## Johnny.Decimal System
@@ -339,34 +346,84 @@ Each document gets a `.meta.json` sidecar file:
 
 ## PWA Landing Page
 
-The `pwa/` folder contains a static landing page that can be hosted at your branded domain (e.g., `organize.yourbrand.com`).
+**Live URL**: [batyrch.github.io/document_organiser](https://batyrch.github.io/document_organiser)
+
+The `pwa/` folder contains source files for the public landing page, deployed via GitHub Pages from the `docs/` folder.
+
+### Page Sections
+- **Hero**: Logo, tagline, privacy badge, launch/get started buttons
+- **How It Works**: 3-step visual (Drop files → AI categorizes → Organized library)
+- **Features**: 6-card grid (AI Categorization, Johnny.Decimal, Privacy-First, Multi-Format, Metadata, Duplicate Detection)
+- **Installation**: Platform-specific tabs (macOS, Windows, Linux) with copy-paste commands
+- **App Status**: Real-time detection of localhost:8501, launch button when running
+- **FAQ**: Accordion with common questions (privacy, AI providers, cost, requirements)
+- **Footer**: Links to GitHub, privacy policy
 
 ### Features
 - **Server Detection**: Automatically checks if `localhost:8501` is running
 - **Visual Status**: Shows "App Running ✓" or "App Not Running" indicator
 - **Launch Button**: Opens the Streamlit app when server is detected
-- **Setup Instructions**: Shows how to start the app if not running
-- **Configurable Port**: Change port if using non-default
+- **Platform Tabs**: OS-specific installation instructions with syntax highlighting
+- **Dark Mode**: Automatic based on system preference
+- **Responsive**: Mobile-friendly layout
+- **No External Dependencies**: Pure HTML/CSS/JS, no build step
 
-### Deployment
-```bash
-# Deploy to any static hosting (Netlify, GitHub Pages, S3, etc.)
-cd pwa
-# Upload index.html to your hosting provider
+### File Structure
+```
+pwa/                    # Source files (edit these)
+├── index.html          # Main landing page (~1100 lines)
+└── privacy.html        # Privacy policy page
+
+docs/                   # GitHub Pages deployment (copy of pwa/)
+├── index.html
+└── privacy.html
 ```
 
+### Deployment (GitHub Pages)
+The site is deployed from the `docs/` folder on the `main` branch.
+
+1. Edit files in `pwa/`
+2. Copy changes to `docs/`:
+   ```bash
+   cp pwa/index.html docs/index.html
+   cp pwa/privacy.html docs/privacy.html
+   ```
+3. Commit and push to `main`
+4. GitHub Pages auto-deploys from `docs/`
+
 ### How It Works
-1. User visits your branded URL
+1. User visits [batyrch.github.io/document_organiser](https://batyrch.github.io/document_organiser)
 2. JavaScript checks if localhost:8501 responds
-3. If running: "Launch" button opens the app
-4. If not running: Shows instructions to start the app
+3. If running: "Launch App" button opens the Streamlit UI
+4. If not running: Shows installation instructions with platform-specific tabs
+
+### Privacy Page
+`privacy.html` explains:
+- What stays local (documents, files, metadata, settings)
+- What may be sent externally (extracted text to AI providers)
+- API key storage locations
+- No tracking/analytics on the landing page
 
 ## Dependencies
 
+Install all dependencies with:
+```bash
+pip install -r requirements.txt
+```
+
+**Core:**
+- streamlit (web UI)
+- pyyaml (config parsing)
+- python-dotenv (env vars)
+- pillow (image handling)
+
+**Document Processing:**
 - docling (document conversion)
-- anthropic (Claude API)
 - pdfplumber (PDF fallback)
 - pytesseract (OCR fallback)
-- python-dotenv
-- Pillow
-- streamlit (web UI)
+
+**AI Providers:**
+- anthropic (Claude API)
+- openai (GPT API)
+- boto3 (AWS Bedrock)
+- requests (Ollama)

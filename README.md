@@ -25,19 +25,18 @@ Automatically organize your scanned documents into folders with AI-powered categ
 4. **Files are moved** to organized folders with descriptive names
 5. **Metadata files** (.meta.json) are created with tags and summaries
 
+## Quick Start
+
+Visit the **[Document Organizer Website](https://batyrch.github.io/document_organiser)** for interactive installation instructions and to launch the app.
+
 ## Installation
 
 ```bash
 # 1. Install dependencies
-pip install docling anthropic pdfplumber pytesseract pillow python-dotenv streamlit pyyaml
+pip install -r requirements.txt
 
-# 2. (Optional) For better OCR on scanned docs
-# macOS: brew install tesseract
-# Ubuntu: sudo apt install tesseract-ocr
-# Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki
-
-# 3. Configure paths in config.yaml (or copy to config.local.yaml for local overrides)
-# 4. Set your API key (optional - Claude Code CLI can use Max subscription)
+# 2. Configure paths in config.yaml (or copy to config.local.yaml for local overrides)
+# 3. Set your API key (optional - Claude Code CLI can use Max subscription)
 export ANTHROPIC_API_KEY="your-key-here"
 ```
 
@@ -194,10 +193,16 @@ python document_organizer.py --rebuild-index
 
 ## Tips
 
-1. **Better OCR**: Install Tesseract for best results with scanned documents
-2. **Claude Code CLI**: Works with Claude Max subscription (no API key needed)
-3. **Failed files**: Check the `_failed` folder for documents that couldn't be processed
-4. **Metadata search**: Use `.meta.json` files to build a searchable index
-5. **Browse Mode**: Use to view and reanalyze existing organized documents
-6. **Batch import**: Drop a folder (e.g., "Salary Slips 2024") into inbox - folder name helps AI categorize
-7. **Duplicate detection**: Run `--rebuild-index` after manually adding files to ensure duplicates are caught
+1. **Claude Code CLI**: Works with Claude Max subscription (no API key needed)
+2. **Failed files**: Check the `_failed` folder for documents that couldn't be processed
+3. **Metadata search**: Use `.meta.json` files to build a searchable index
+4. **Browse Mode**: Use to view and reanalyze existing organized documents
+5. **Batch import**: Drop a folder (e.g., "Salary Slips 2024") into inbox - folder name helps AI categorize
+6. **Duplicate detection**: Run `--rebuild-index` after manually adding files to ensure duplicates are caught
+
+## Website & Privacy
+
+- **Landing Page**: [batyrch.github.io/document_organiser](https://batyrch.github.io/document_organiser)
+- **Privacy Policy**: [Privacy](https://batyrch.github.io/document_organiser/privacy.html)
+
+All document processing happens locally on your machine. Only extracted text is sent to AI providers (if using cloud AI). Use Ollama for 100% offline operation.
