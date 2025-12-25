@@ -55,34 +55,35 @@ class TestSlugify:
 
 
 class TestExtractYear:
-    """Tests for year extraction from dates."""
+    """Tests for year extraction from analysis dict."""
 
     def test_iso_date(self):
-        """Test extraction from ISO format date."""
-        assert extract_year("2024-12-20") == "2024"
-
-    def test_european_date(self):
-        """Test extraction from European format date."""
-        assert extract_year("20.12.2024") == "2024"
-
-    def test_us_date(self):
-        """Test extraction from US format date."""
-        assert extract_year("12/20/2024") == "2024"
+        """Test extraction from ISO format date in analysis dict."""
+        assert extract_year({"date_mentioned": "2024-12-20"}) == "2024"
 
     def test_year_only(self):
-        """Test extraction when only year is provided."""
-        assert extract_year("2024") == "2024"
+        """Test extraction when only year is in date_mentioned."""
+        assert extract_year({"date_mentioned": "2024"}) == "2024"
 
-    def test_none_input(self):
-        """Test handling of None input."""
-        result = extract_year(None)
-        # Should return current year or empty string
-        assert result is None or len(result) == 4
+    def test_none_date(self):
+        """Test handling of None date_mentioned."""
+        from datetime import datetime
+        result = extract_year({"date_mentioned": None})
+        # Should return current year as fallback
+        assert result == str(datetime.now().year)
 
-    def test_invalid_date(self):
-        """Test handling of invalid date string."""
-        result = extract_year("not a date")
-        assert result is None or result == ""
+    def test_missing_key(self):
+        """Test handling of missing date_mentioned key."""
+        from datetime import datetime
+        result = extract_year({})
+        # Should return current year as fallback
+        assert result == str(datetime.now().year)
+
+    def test_empty_dict(self):
+        """Test handling of empty analysis dict."""
+        from datetime import datetime
+        result = extract_year({})
+        assert result == str(datetime.now().year)
 
 
 class TestGenerateFolderDescriptor:

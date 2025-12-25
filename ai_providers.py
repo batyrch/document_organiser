@@ -271,6 +271,8 @@ class BedrockProvider(AIProvider):
 
     # Supported models
     MODELS = {
+        "claude-sonnet-4": "anthropic.claude-sonnet-4-20250514-v1:0",
+        "claude-3-5-sonnet": "anthropic.claude-3-5-sonnet-20241022-v2:0",
         "claude-3-sonnet": "anthropic.claude-3-sonnet-20240229-v1:0",
         "claude-3-haiku": "anthropic.claude-3-haiku-20240307-v1:0",
         "claude-3-opus": "anthropic.claude-3-opus-20240229-v1:0",
@@ -281,7 +283,7 @@ class BedrockProvider(AIProvider):
 
     def __init__(
         self,
-        model: str = "claude-3-sonnet",
+        model: str = "claude-sonnet-4",
         region: Optional[str] = None,
         profile: Optional[str] = None
     ):
