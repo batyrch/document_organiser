@@ -10,6 +10,7 @@ pillow>=10.0.0
 # Document processing
 docling>=2.0.0
 pdfplumber>=0.11.0
+pymupdf>=1.24.0            # For PDF thumbnail generation in UI
 
 # AI providers (install as needed)
 anthropic>=0.40.0          # For Claude API

@@ -44,6 +44,15 @@ from document_organizer import (
 # Import settings management
 from settings import get_settings, get_config_dir
 
+# For thumbnail generation
+from PIL import Image
+import io
+try:
+    import fitz  # PyMuPDF for PDF thumbnails
+    HAS_PYMUPDF = True
+except ImportError:
+    HAS_PYMUPDF = False
+
 # Page config
 st.set_page_config(
     page_title="Document Organizer",
@@ -190,6 +199,319 @@ def show_hand_loading(text: str = "Loading..."):
     st.markdown(HAND_LOADING_CSS, unsafe_allow_html=True)
     st.markdown(HAND_LOADING_HTML.format(text=text), unsafe_allow_html=True)
 
+
+# ==============================================================================
+# TAG CHIPS & UI COMPONENTS
+# ==============================================================================
+
+# Color mapping for JD areas and common tags
+TAG_COLORS = {
+    # JD Areas
+    "10-19 finance": "#27ae60",
+    "20-29 medical": "#e74c3c",
+    "30-39 legal": "#3498db",
+    "40-49 work": "#9b59b6",
+    "50-59 personal": "#f39c12",
+    "00-09 system": "#7f8c8d",
+    # Common tags
+    "bank": "#27ae60",
+    "tax": "#27ae60",
+    "insurance": "#2ecc71",
+    "receipt": "#1abc9c",
+    "medical": "#e74c3c",
+    "doctor": "#e74c3c",
+    "hospital": "#c0392b",
+    "prescription": "#e74c3c",
+    "contract": "#3498db",
+    "legal": "#3498db",
+    "employment": "#9b59b6",
+    "salary": "#9b59b6",
+    "education": "#f39c12",
+    "travel": "#f39c12",
+}
+
+TAG_CHIPS_CSS = """
+<style>
+.tag-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 4px 0;
+}
+.tag-chip {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: white;
+    white-space: nowrap;
+}
+.tag-chip-small {
+    padding: 1px 6px;
+    font-size: 10px;
+    border-radius: 8px;
+}
+/* Grid view styles */
+.file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+    padding: 8px;
+}
+.file-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 12px;
+    background: #fafafa;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.file-card:hover {
+    border-color: #4492f4;
+    box-shadow: 0 2px 8px rgba(68, 146, 244, 0.2);
+}
+.file-card.selected {
+    border-color: #4492f4;
+    background: #e3f2fd;
+}
+.file-card-thumb {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.file-card-name {
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.file-card-meta {
+    font-size: 10px;
+    color: #666;
+    margin-top: 4px;
+}
+/* Breadcrumb styles */
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 14px;
+    padding: 8px 0;
+    flex-wrap: wrap;
+}
+.breadcrumb-item {
+    color: #666;
+    text-decoration: none;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.breadcrumb-item:hover {
+    background: #e0e0e0;
+    color: #333;
+}
+.breadcrumb-item.current {
+    color: #333;
+    font-weight: 500;
+}
+.breadcrumb-sep {
+    color: #999;
+}
+/* Destination preview */
+.dest-preview {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0;
+}
+.dest-preview-path {
+    font-family: monospace;
+    font-size: 13px;
+    color: #495057;
+    word-break: break-all;
+}
+.dest-preview-label {
+    font-size: 11px;
+    color: #6c757d;
+    margin-bottom: 4px;
+}
+</style>
+"""
+
+
+def get_tag_color(tag: str) -> str:
+    """Get color for a tag based on its content."""
+    tag_lower = tag.lower()
+    # Check exact match first
+    if tag_lower in TAG_COLORS:
+        return TAG_COLORS[tag_lower]
+    # Check partial match
+    for key, color in TAG_COLORS.items():
+        if key in tag_lower or tag_lower in key:
+            return color
+    # Default color
+    return "#95a5a6"
+
+
+def render_tag_chips(tags: list, small: bool = False) -> str:
+    """Render tags as colored chips. Returns HTML string."""
+    if not tags:
+        return ""
+
+    size_class = "tag-chip-small" if small else ""
+    chips = []
+    for tag in tags[:8]:  # Limit to 8 tags
+        color = get_tag_color(tag)
+        chips.append(f'<span class="tag-chip {size_class}" style="background:{color}">{tag}</span>')
+
+    return f'<div class="tag-container">{"".join(chips)}</div>'
+
+
+def render_category_chip(area: str, category: str) -> str:
+    """Render JD area/category as a chip."""
+    area_lower = area.lower() if area else ""
+    color = TAG_COLORS.get(area_lower, "#95a5a6")
+    cat_short = category.split(" ", 1)[1] if category and " " in category else category
+    return f'<span class="tag-chip" style="background:{color}">{cat_short}</span>'
+
+
+# ==============================================================================
+# THUMBNAIL GENERATION
+# ==============================================================================
+
+@st.cache_data(ttl=3600)
+def generate_thumbnail(file_path: str, size: tuple = (200, 200)) -> bytes | None:
+    """Generate a thumbnail for a file. Returns base64-encoded image data."""
+    path = Path(file_path)
+    suffix = path.suffix.lower()
+
+    try:
+        if suffix in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']:
+            # Image files
+            img = Image.open(path)
+            img.thumbnail(size, Image.Resampling.LANCZOS)
+            # Convert to RGB if necessary
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+            buffer = io.BytesIO()
+            img.save(buffer, format='JPEG', quality=85)
+            return buffer.getvalue()
+
+        elif suffix == '.pdf' and HAS_PYMUPDF:
+            # PDF files - use first page
+            doc = fitz.open(str(path))
+            if len(doc) > 0:
+                page = doc[0]
+                # Render at higher resolution then scale down
+                mat = fitz.Matrix(0.5, 0.5)
+                pix = page.get_pixmap(matrix=mat)
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                img.thumbnail(size, Image.Resampling.LANCZOS)
+                buffer = io.BytesIO()
+                img.save(buffer, format='JPEG', quality=85)
+                doc.close()
+                return buffer.getvalue()
+            doc.close()
+
+        elif suffix == '.tiff':
+            img = Image.open(path)
+            img.thumbnail(size, Image.Resampling.LANCZOS)
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+            buffer = io.BytesIO()
+            img.save(buffer, format='JPEG', quality=85)
+            return buffer.getvalue()
+
+    except Exception as e:
+        pass
+
+    return None
+
+
+def get_file_icon(suffix: str) -> str:
+    """Get an emoji icon for a file type."""
+    icons = {
+        '.pdf': '📄',
+        '.png': '🖼️',
+        '.jpg': '🖼️',
+        '.jpeg': '🖼️',
+        '.tiff': '🖼️',
+        '.bmp': '🖼️',
+        '.docx': '📝',
+        '.xlsx': '📊',
+        '.pptx': '📽️',
+        '.txt': '📃',
+        '.html': '🌐',
+    }
+    return icons.get(suffix.lower(), '📁')
+
+
+# ==============================================================================
+# BREADCRUMB NAVIGATION
+# ==============================================================================
+
+def render_breadcrumb(current_path: Path, base_path: Path) -> None:
+    """Render clickable breadcrumb navigation."""
+    try:
+        relative = current_path.relative_to(base_path)
+        parts = list(relative.parts)
+    except ValueError:
+        parts = []
+
+    # Build breadcrumb HTML
+    st.markdown(TAG_CHIPS_CSS, unsafe_allow_html=True)
+
+    crumbs = [f'<span class="breadcrumb-item" title="{base_path}">{base_path.name}</span>']
+
+    for i, part in enumerate(parts):
+        crumbs.append('<span class="breadcrumb-sep">/</span>')
+        is_current = (i == len(parts) - 1)
+        class_name = "breadcrumb-item current" if is_current else "breadcrumb-item"
+        crumbs.append(f'<span class="{class_name}">{part}</span>')
+
+    st.markdown(f'<div class="breadcrumb">{"".join(crumbs)}</div>', unsafe_allow_html=True)
+
+
+# ==============================================================================
+# DESTINATION PREVIEW
+# ==============================================================================
+
+def render_destination_preview(area: str, category: str, issuer: str, doc_type: str,
+                                date: str, output_dir: str) -> None:
+    """Show preview of where the file will be organized."""
+    st.markdown(TAG_CHIPS_CSS, unsafe_allow_html=True)
+
+    # Build the destination path preview
+    year = date[:4] if date and len(date) >= 4 else datetime.now().strftime("%Y")
+
+    # Build filename preview
+    parts = []
+    if issuer:
+        parts.append(issuer)
+    if doc_type:
+        parts.append(doc_type)
+    descriptor = " ".join(parts) if parts else "Document"
+
+    filename = f"XX.XX {descriptor} {year}.pdf"
+    full_path = f"{Path(output_dir).name}/{area}/{category}/{filename}"
+
+    html = f'''
+    <div class="dest-preview">
+        <div class="dest-preview-label">📍 Destination Preview</div>
+        <div class="dest-preview-path">{full_path}</div>
+    </div>
+    '''
+    st.markdown(html, unsafe_allow_html=True)
+
+
 from contextlib import contextmanager
 import subprocess
 import platform
@@ -257,6 +579,10 @@ if "browse_recursive" not in st.session_state:
     st.session_state.browse_recursive = True
 if "checkbox_key_version" not in st.session_state:
     st.session_state.checkbox_key_version = 0
+if "view_mode" not in st.session_state:
+    st.session_state.view_mode = "list"  # "list" or "grid"
+if "recent_files" not in st.session_state:
+    st.session_state.recent_files = []  # Track recently processed files
 
 
 def get_inbox_files(inbox_dir: str) -> list[tuple[Path, bool, dict | None]]:
@@ -603,8 +929,37 @@ def main():
                 st.rerun()
             st.divider()
 
-        if st.button("🔄 Refresh", width="stretch"):
+        if st.button("🔄 Refresh", use_container_width=True):
             st.rerun()
+
+        st.divider()
+
+        # File upload in sidebar (always available)
+        with st.expander("📤 Upload Files"):
+            uploaded_files = st.file_uploader(
+                "Drop files here",
+                accept_multiple_files=True,
+                type=['pdf', 'png', 'jpg', 'jpeg', 'tiff', 'bmp', 'docx', 'txt'],
+                key="sidebar_uploader",
+                label_visibility="collapsed"
+            )
+            if uploaded_files:
+                inbox_path = Path(inbox_dir)
+                inbox_path.mkdir(parents=True, exist_ok=True)
+                uploaded_count = 0
+                for uploaded_file in uploaded_files:
+                    dest = inbox_path / uploaded_file.name
+                    counter = 1
+                    while dest.exists():
+                        stem = Path(uploaded_file.name).stem
+                        suffix = Path(uploaded_file.name).suffix
+                        dest = inbox_path / f"{stem}_{counter}{suffix}"
+                        counter += 1
+                    with open(dest, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    uploaded_count += 1
+                st.success(f"Uploaded {uploaded_count} files!")
+                st.rerun()
 
     # Search section
     st.subheader("🔍 Search")
@@ -627,25 +982,74 @@ def main():
         if search_query:
             st.info(f"🔍 No files match '{search_query}' in {search_field}")
         else:
-            st.info("📭 No files in inbox. Drop documents into the inbox folder to organize them.")
-            st.code(inbox_dir)
+            st.info("📭 No files in inbox. Upload documents below or drop them into the inbox folder.")
+
+            # Drag & drop file uploader
+            uploaded_files = st.file_uploader(
+                "Drop files here to upload",
+                accept_multiple_files=True,
+                type=['pdf', 'png', 'jpg', 'jpeg', 'tiff', 'bmp', 'docx', 'txt'],
+                key="file_uploader_empty"
+            )
+
+            if uploaded_files:
+                inbox_path = Path(inbox_dir)
+                inbox_path.mkdir(parents=True, exist_ok=True)
+                uploaded_count = 0
+                for uploaded_file in uploaded_files:
+                    dest = inbox_path / uploaded_file.name
+                    # Handle duplicates
+                    counter = 1
+                    while dest.exists():
+                        stem = Path(uploaded_file.name).stem
+                        suffix = Path(uploaded_file.name).suffix
+                        dest = inbox_path / f"{stem}_{counter}{suffix}"
+                        counter += 1
+                    with open(dest, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    uploaded_count += 1
+                st.success(f"Uploaded {uploaded_count} files to inbox!")
+                st.rerun()
+
+            st.caption(f"Inbox: `{inbox_dir}`")
         return
+
+    # Inject CSS for tag chips and grid
+    st.markdown(TAG_CHIPS_CSS, unsafe_allow_html=True)
 
     # Main layout
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        st.subheader(f"📥 Inbox ({len(files)} files)")
+        # Header with view toggle
+        col_header, col_view = st.columns([3, 1])
+        with col_header:
+            st.subheader(f"📥 Files ({len(files)})")
+        with col_view:
+            view_mode = st.radio(
+                "View",
+                ["☰", "⊞"],  # List and Grid icons
+                index=0 if st.session_state.view_mode == "list" else 1,
+                horizontal=True,
+                label_visibility="collapsed",
+                key="view_toggle"
+            )
+            st.session_state.view_mode = "list" if view_mode == "☰" else "grid"
+
+        # Breadcrumb navigation for browse mode
+        if st.session_state.browse_mode:
+            current_folder = st.session_state.get("browse_folder_input", output_dir)
+            render_breadcrumb(Path(current_folder), Path(output_dir))
 
         # Bulk selection controls
         col_sel1, col_sel2 = st.columns(2)
         with col_sel1:
-            if st.button("Select All", width="stretch"):
+            if st.button("Select All", use_container_width=True):
                 st.session_state.selected_files = {str(f) for f, _, _ in files}
                 st.session_state.checkbox_key_version += 1
                 st.rerun()
         with col_sel2:
-            if st.button("Clear Selection", width="stretch"):
+            if st.button("Clear Selection", use_container_width=True):
                 st.session_state.selected_files = set()
                 st.session_state.checkbox_key_version += 1
                 st.rerun()
@@ -654,33 +1058,85 @@ def main():
         if st.session_state.selected_files:
             st.caption(f"Selected: {len(st.session_state.selected_files)} files")
 
-        # File list with checkboxes
-        for i, (file, analyzed, analysis) in enumerate(files):
-            col_cb, col_btn = st.columns([0.15, 0.85])
+        # File display - List or Grid view
+        if st.session_state.view_mode == "grid":
+            # Grid view with thumbnails
+            cols_per_row = 3
+            for row_start in range(0, len(files), cols_per_row):
+                row_files = files[row_start:row_start + cols_per_row]
+                cols = st.columns(cols_per_row)
 
-            with col_cb:
-                is_selected = str(file) in st.session_state.selected_files
-                cb_key = f"sel_{i}_v{st.session_state.checkbox_key_version}"
-                if st.checkbox("Select file", value=is_selected, key=cb_key, label_visibility="collapsed"):
-                    st.session_state.selected_files.add(str(file))
-                else:
-                    st.session_state.selected_files.discard(str(file))
+                for col_idx, (file, analyzed, analysis) in enumerate(row_files):
+                    with cols[col_idx]:
+                        i = row_start + col_idx
+                        is_selected = str(file) in st.session_state.selected_files
 
-            with col_btn:
-                status = "✅" if analyzed else "⏳"
-                # Show issuer/type preview if available
-                preview = ""
-                if analysis:
-                    issuer = analysis.get("issuer", "")
-                    doc_type = analysis.get("document_type", "")
-                    if issuer or doc_type:
-                        preview = f" ({issuer or ''} - {doc_type or ''})"[:30]
+                        # Selection checkbox
+                        cb_key = f"sel_{i}_v{st.session_state.checkbox_key_version}"
+                        if st.checkbox("Select", value=is_selected, key=cb_key, label_visibility="collapsed"):
+                            st.session_state.selected_files.add(str(file))
+                        else:
+                            st.session_state.selected_files.discard(str(file))
 
-                btn_label = f"{status} {file.name[:25]}{'...' if len(file.name) > 25 else ''}{preview}"
-                if st.button(btn_label, key=f"file_{i}", width="stretch"):
-                    st.session_state.current_file = file
-                    st.session_state.current_file_idx = i
-                    st.rerun()
+                        # Thumbnail
+                        thumb = generate_thumbnail(str(file))
+                        if thumb:
+                            st.image(thumb, use_container_width=True)
+                        else:
+                            # Show file icon placeholder
+                            icon = get_file_icon(file.suffix)
+                            st.markdown(
+                                f'<div style="height:80px;background:#f0f0f0;display:flex;align-items:center;'
+                                f'justify-content:center;font-size:32px;border-radius:4px;">{icon}</div>',
+                                unsafe_allow_html=True
+                            )
+
+                        # File info
+                        status = "✅" if analyzed else "⏳"
+                        if st.button(f"{status} {file.name[:18]}{'...' if len(file.name) > 18 else ''}",
+                                    key=f"file_{i}", use_container_width=True):
+                            st.session_state.current_file = file
+                            st.session_state.current_file_idx = i
+                            st.rerun()
+
+                        # Show tags if available
+                        if analysis and analysis.get("tags"):
+                            st.markdown(render_tag_chips(analysis.get("tags", [])[:3], small=True),
+                                       unsafe_allow_html=True)
+
+        else:
+            # List view (original)
+            for i, (file, analyzed, analysis) in enumerate(files):
+                col_cb, col_btn = st.columns([0.1, 0.9])
+
+                with col_cb:
+                    is_selected = str(file) in st.session_state.selected_files
+                    cb_key = f"sel_{i}_v{st.session_state.checkbox_key_version}"
+                    if st.checkbox("Select file", value=is_selected, key=cb_key, label_visibility="collapsed"):
+                        st.session_state.selected_files.add(str(file))
+                    else:
+                        st.session_state.selected_files.discard(str(file))
+
+                with col_btn:
+                    status = "✅" if analyzed else "⏳"
+                    # Show issuer/type preview if available
+                    preview = ""
+                    if analysis:
+                        issuer = analysis.get("issuer", "")
+                        doc_type = analysis.get("document_type", "")
+                        if issuer or doc_type:
+                            preview = f" ({issuer or ''} - {doc_type or ''})"[:30]
+
+                    btn_label = f"{status} {file.name[:25]}{'...' if len(file.name) > 25 else ''}{preview}"
+                    if st.button(btn_label, key=f"file_{i}", use_container_width=True):
+                        st.session_state.current_file = file
+                        st.session_state.current_file_idx = i
+                        st.rerun()
+
+                    # Show tag chips inline for list view
+                    if analysis and analysis.get("tags"):
+                        st.markdown(render_tag_chips(analysis.get("tags", [])[:4], small=True),
+                                   unsafe_allow_html=True)
 
     with col2:
         # Bulk actions for selected files
@@ -898,7 +1354,8 @@ def main():
                     st.write(f"**Date:** {analysis.get('date_mentioned', 'Not found')}")
                 st.write(f"**Summary:** {analysis.get('summary', 'No summary')}")
                 if analysis.get('tags'):
-                    st.write(f"**Tags:** {', '.join(analysis.get('tags', []))}")
+                    st.write("**Tags:**")
+                    st.markdown(render_tag_chips(analysis.get('tags', [])), unsafe_allow_html=True)
 
                 # Re-analyze button
                 if st.button("🔄 Re-analyze with AI"):
@@ -963,6 +1420,12 @@ def main():
             tags = st.text_input("Tags (comma-separated)", value=default_tags)
 
         subject_person = st.text_input("Subject Person (only if document is about someone else)", value="")
+
+        # Destination preview - shows where file will be organized
+        render_destination_preview(
+            selected_area, selected_category, issuer, document_type,
+            document_date, output_dir
+        )
 
         st.divider()
 
