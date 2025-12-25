@@ -10,6 +10,7 @@ Automatically organize scanned documents using AI-powered categorization with th
 document_organiser/
 ├── document_organizer.py   # Main organizer script with JD integration
 ├── ui.py                   # Streamlit web UI for manual classification
+├── settings.py             # Persistent settings management
 ├── preview_renames.py      # Migration preview script for renaming existing folders
 ├── migrate_to_jd.py        # Migration script for existing files
 ├── config.yaml             # Project settings (paths, mode, logging)
@@ -92,8 +93,27 @@ Examples:
 - Folder names are passed to AI as context hints (e.g., "Salary Slips" folder → 45 Salary & Payments)
 - `folder_hint` parameter in `categorize_with_claude_code()` and `categorize_with_llm()`
 
+### settings.py
+- Persistent settings management stored in platform-specific config directory
+- Settings stored in JSON at:
+  - macOS: `~/Library/Application Support/DocumentOrganizer/settings.json`
+  - Linux: `~/.config/DocumentOrganizer/settings.json`
+  - Windows: `%APPDATA%/DocumentOrganizer/settings.json`
+- Key functions:
+  - `get_settings()` - Get global Settings instance
+  - `Settings.get()` / `Settings.set()` - Read/write individual settings
+  - `Settings.output_dir` / `Settings.inbox_dir` - Directory properties
+  - `Settings.get_effective_provider()` - Auto-detect best AI provider
+  - `Settings.create_directories()` - Create configured directories
+
 ### ui.py
 - Streamlit web interface for manual classification
+- **First-run Setup Wizard**: Guides new users through initial configuration
+- **Settings Page**: Configure directories, AI providers, API keys
+- **Navigation**: Sidebar radio to switch between Documents and Settings
+- `render_app()` - Main entry point, handles setup wizard vs normal app
+- `render_settings_page()` - Full settings UI with tabs (Directories, AI, About)
+- `render_setup_wizard()` - First-run configuration wizard
 - `get_inbox_files()` - List files in inbox with analysis status
 - `get_folder_files()` - List files in any folder with metadata (recursive option)
 - `filter_files()` - Search/filter by metadata fields
@@ -279,6 +299,30 @@ Each document gets a `.meta.json` sidecar file:
   "extracted_text": "..."
 }
 ```
+
+## PWA Landing Page
+
+The `pwa/` folder contains a static landing page that can be hosted at your branded domain (e.g., `organize.yourbrand.com`).
+
+### Features
+- **Server Detection**: Automatically checks if `localhost:8501` is running
+- **Visual Status**: Shows "App Running ✓" or "App Not Running" indicator
+- **Launch Button**: Opens the Streamlit app when server is detected
+- **Setup Instructions**: Shows how to start the app if not running
+- **Configurable Port**: Change port if using non-default
+
+### Deployment
+```bash
+# Deploy to any static hosting (Netlify, GitHub Pages, S3, etc.)
+cd pwa
+# Upload index.html to your hosting provider
+```
+
+### How It Works
+1. User visits your branded URL
+2. JavaScript checks if localhost:8501 responds
+3. If running: "Launch" button opens the app
+4. If not running: Shows instructions to start the app
 
 ## Dependencies
 
