@@ -635,6 +635,134 @@
             color: white;
         }
 
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            background: var(--gray-50);
+            border-radius: var(--radius);
+            padding: 2.5rem;
+            max-width: 500px;
+            width: 90%;
+            position: relative;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--gray-400);
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+
+        .modal-close:hover {
+            background: var(--gray-100);
+            color: var(--gray-600);
+        }
+
+        .modal-content h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--gray-900);
+        }
+
+        .modal-subtitle {
+            color: var(--gray-500);
+            margin-bottom: 1.5rem;
+        }
+
+        .download-btn {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .install-steps {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: var(--gray-100);
+            border-radius: 8px;
+        }
+
+        .install-steps h4 {
+            font-size: 0.9rem;
+            color: var(--gray-700);
+            margin-bottom: 0.75rem;
+        }
+
+        .install-steps ol {
+            margin: 0;
+            padding-left: 1.25rem;
+            color: var(--gray-600);
+            font-size: 0.9rem;
+        }
+
+        .install-steps li {
+            margin-bottom: 0.5rem;
+        }
+
+        .domain-setup {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: var(--primary-light);
+            border-radius: 8px;
+        }
+
+        .domain-setup h4 {
+            font-size: 0.9rem;
+            color: var(--gray-700);
+            margin-bottom: 0.5rem;
+        }
+
+        .domain-setup p {
+            font-size: 0.85rem;
+            color: var(--gray-600);
+            margin: 0;
+        }
+
+        .domain-setup .code-block {
+            padding: 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        .small-note {
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+        }
+
+        .modal-note {
+            margin-top: 1.5rem;
+            text-align: center;
+            font-size: 0.875rem;
+            color: var(--gray-500);
+        }
+
+        .modal-note a {
+            color: var(--primary);
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .nav-links {
@@ -700,13 +828,53 @@
                 Johnny.Decimal system. Everything runs locally on your machine.
             </p>
             <div class="hero-buttons">
-                <a href="#install" class="btn btn-primary">
-                    Get Started
-                </a>
+                <button class="btn btn-primary" id="getStartedBtn" onclick="handleGetStarted()">
+                    <span id="getStartedIcon">⬇️</span>
+                    <span id="getStartedText">Download for macOS</span>
+                </button>
                 <button class="btn btn-secondary" id="launchBtn" disabled>
                     <span id="btnIcon">⏳</span>
                     <span id="btnText">Checking local app...</span>
                 </button>
+            </div>
+
+            <!-- Download Modal -->
+            <div id="downloadModal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                    <h3>📥 Download Document Organizer</h3>
+                    <p class="modal-subtitle">One-click installer for macOS</p>
+
+                    <a href="https://github.com/batyrch/document_organiser/releases/latest/download/Document-Organizer.app"
+                       class="btn btn-primary download-btn"
+                       onclick="trackDownload()">
+                        <span>⬇️</span> Download for macOS
+                    </a>
+
+                    <div class="install-steps">
+                        <h4>After downloading:</h4>
+                        <ol>
+                            <li><strong>Move</strong> "Document Organizer.app" to Applications</li>
+                            <li><strong>First launch</strong>: Right-click → Open → "Open Anyway"</li>
+                            <li><strong>If blocked</strong>: System Settings → Privacy & Security → "Allow Anyway"</li>
+                            <li>The app opens in your browser automatically</li>
+                        </ol>
+                    </div>
+
+                    <div class="domain-setup">
+                        <h4>🌐 Optional: Use custom domain</h4>
+                        <p>Access the app via a friendly URL instead of localhost:</p>
+                        <div class="code-block" style="margin: 1rem 0;">
+                            <code><span class="comment"># Add to /etc/hosts (requires admin password)</span>
+<span class="command">sudo echo "127.0.0.1 docorganizer.local" >> /etc/hosts</span></code>
+                        </div>
+                        <p class="small-note">Then visit <strong>http://docorganizer.local:8501</strong></p>
+                    </div>
+
+                    <p class="modal-note">
+                        Not on macOS? <a href="#install" onclick="closeModal()">See manual installation</a>
+                    </p>
+                </div>
             </div>
 
             <!-- Demo Visual -->
@@ -1102,6 +1270,59 @@
         elements.launchBtn2.addEventListener('click', launchApp);
         elements.retryBtn.addEventListener('click', checkServerStatus);
         elements.portInput.addEventListener('change', checkServerStatus);
+
+        // Modal functions
+        function handleGetStarted() {
+            // Detect OS
+            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+
+            if (isMac) {
+                document.getElementById('downloadModal').style.display = 'flex';
+            } else {
+                // Non-macOS: scroll to install section
+                document.getElementById('install').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('downloadModal').style.display = 'none';
+        }
+
+        function trackDownload() {
+            // Optional: Add analytics tracking here
+            console.log('Download started');
+        }
+
+        // Close modal on backdrop click
+        document.getElementById('downloadModal')?.addEventListener('click', (e) => {
+            if (e.target.id === 'downloadModal') {
+                closeModal();
+            }
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Update Get Started button text based on OS
+        function updateGetStartedButton() {
+            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+            const textEl = document.getElementById('getStartedText');
+            const iconEl = document.getElementById('getStartedIcon');
+
+            if (isMac) {
+                textEl.textContent = 'Download for macOS';
+                iconEl.textContent = '⬇️';
+            } else {
+                textEl.textContent = 'Get Started';
+                iconEl.textContent = '🚀';
+            }
+        }
+
+        updateGetStartedButton();
 
         // Initial check
         checkServerStatus();

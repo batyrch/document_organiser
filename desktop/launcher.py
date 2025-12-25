@@ -46,11 +46,24 @@ def wait_for_server(host, port, timeout=30):
 def get_app_dir():
     """Get the directory containing the application files."""
     if getattr(sys, 'frozen', False):
-        # Running as compiled executable
+        # Running as compiled executable (PyInstaller bundle)
         return Path(sys._MEIPASS)
     else:
         # Running as script
         return Path(__file__).parent.parent
+
+
+def show_error_dialog(title, message):
+    """Show an error dialog on macOS."""
+    if sys.platform == "darwin":
+        try:
+            subprocess.run([
+                "osascript", "-e",
+                f'display dialog "{message}" with title "{title}" buttons {{"OK"}} default button "OK" with icon stop'
+            ], check=False)
+        except Exception:
+            pass  # Fall through to print
+    print(f"Error: {title}\n{message}")
 
 
 def main():
@@ -59,17 +72,22 @@ def main():
 
     # Ensure we have the UI file
     if not ui_path.exists():
-        print(f"Error: Could not find ui.py at {ui_path}")
+        show_error_dialog(
+            "Document Organizer",
+            f"Could not find ui.py at {ui_path}\n\nThe application may be corrupted. Please re-download."
+        )
         sys.exit(1)
 
     # Find a free port
     port = get_free_port()
     host = "localhost"
-    url = f"http://{host}:{port}"
+    local_url = f"http://{host}:{port}"
+    # Open the hosted app page which connects to local server
+    app_url = f"https://batyrch.github.io/document_organiser/app.html?port={port}"
 
     print(f"Starting Document Organizer...")
     print(f"App directory: {app_dir}")
-    print(f"Server will be available at: {url}")
+    print(f"Server will be available at: {local_url}")
 
     # Set up environment
     env = os.environ.copy()
@@ -134,8 +152,8 @@ def main():
     # Wait for server to start, then open browser
     def open_browser():
         if wait_for_server(host, port):
-            print(f"Opening browser to {url}")
-            webbrowser.open(url)
+            print(f"Opening browser to {app_url}")
+            webbrowser.open(app_url)
         else:
             print("Warning: Server did not start within timeout")
 

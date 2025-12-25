@@ -27,18 +27,32 @@ Automatically organize your scanned documents into folders with AI-powered categ
 
 ## Quick Start
 
-Visit the **[Document Organizer Website](https://batyrch.github.io/document_organiser)** for interactive installation instructions and to launch the app.
+### Option 1: Desktop App (Recommended for Non-Technical Users)
 
-## Installation
+1. **Download** [Document Organizer for macOS](https://github.com/batyrch/document_organiser/releases/latest/download/Document-Organizer.app)
+2. **Move** to Applications folder
+3. **First launch**: Right-click → Open → "Open Anyway" (required once to bypass Gatekeeper)
+4. **Allow in Settings**: System Settings → Privacy & Security → "Allow Anyway"
+5. The app opens in your browser automatically
+
+### Option 2: Manual Installation (Developers)
 
 ```bash
-# 1. Install dependencies
+# 1. Clone the repository
+git clone https://github.com/batyrch/document_organiser
+cd document_organiser
+
+# 2. Install dependencies
 pip install -r requirements.txt
 
-# 2. Configure paths in config.yaml (or copy to config.local.yaml for local overrides)
 # 3. Set your API key (optional - Claude Code CLI can use Max subscription)
 export ANTHROPIC_API_KEY="your-key-here"
+
+# 4. Run the app
+streamlit run ui.py
 ```
+
+Visit the **[Document Organizer Website](https://batyrch.github.io/document_organiser)** for interactive installation instructions.
 
 ## Configuration
 

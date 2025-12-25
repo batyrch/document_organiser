@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Organizer</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📁</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #f9fafb;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.3s ease;
+        }
+
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-logo {
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .loading-text {
+            font-size: 1.25rem;
+            color: #374151;
+            margin-bottom: 1rem;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e5e7eb;
+            border-top-color: #4F46E5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Error state */
+        .error-state {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .error-state.visible {
+            display: block;
+        }
+
+        .error-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .error-title {
+            font-size: 1.5rem;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+
+        .error-message {
+            color: #6b7280;
+            margin-bottom: 1.5rem;
+        }
+
+        .retry-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: #4F46E5;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .retry-btn:hover {
+            background: #4338CA;
+        }
+
+        /* App iframe */
+        .app-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: none;
+        }
+
+        .app-frame.loaded {
+            display: block;
+        }
+
+        /* Dark mode */
+        @media (prefers-color-scheme: dark) {
+            .loading-overlay {
+                background: #111827;
+            }
+
+            .loading-text {
+                color: #f3f4f6;
+            }
+
+            .loading-spinner {
+                border-color: #374151;
+                border-top-color: #818CF8;
+            }
+
+            .error-title {
+                color: #f9fafb;
+            }
+
+            .error-message {
+                color: #9ca3af;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-logo">📁</div>
+        <div class="loading-text" id="loadingText">Connecting to Document Organizer...</div>
+        <div class="loading-spinner" id="loadingSpinner"></div>
+
+        <div class="error-state" id="errorState">
+            <div class="error-icon">⚠️</div>
+            <div class="error-title">Connection Failed</div>
+            <div class="error-message" id="errorMessage">
+                Could not connect to the local app server.
+            </div>
+            <button class="retry-btn" onclick="retryConnection()">
+                🔄 Retry Connection
+            </button>
+        </div>
+    </div>
+
+    <!-- App iframe - loads the local Streamlit server -->
+    <iframe id="appFrame" class="app-frame"></iframe>
+
+    <script>
+        // Get port from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const port = urlParams.get('port') || '8501';
+        const appUrl = `http://localhost:${port}`;
+
+        let retryCount = 0;
+        const maxRetries = 30;
+        const retryInterval = 1000; // 1 second
+
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText = document.getElementById('loadingText');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const errorState = document.getElementById('errorState');
+        const errorMessage = document.getElementById('errorMessage');
+        const appFrame = document.getElementById('appFrame');
+
+        async function checkServer() {
+            try {
+                // Try to connect to the server
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+                await fetch(`${appUrl}/healthz`, {
+                    mode: 'no-cors',
+                    signal: controller.signal,
+                });
+
+                clearTimeout(timeoutId);
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
+
+        async function connectToApp() {
+            loadingText.textContent = `Connecting to Document Organizer...`;
+            loadingSpinner.style.display = 'block';
+            errorState.classList.remove('visible');
+
+            while (retryCount < maxRetries) {
+                const isAvailable = await checkServer();
+
+                if (isAvailable) {
+                    // Server is ready, load the app
+                    loadingText.textContent = 'Loading app...';
+                    appFrame.src = appUrl;
+
+                    // Wait for iframe to load
+                    appFrame.onload = () => {
+                        loadingOverlay.classList.add('hidden');
+                        appFrame.classList.add('loaded');
+                    };
+
+                    // Fallback timeout in case onload doesn't fire
+                    setTimeout(() => {
+                        loadingOverlay.classList.add('hidden');
+                        appFrame.classList.add('loaded');
+                    }, 3000);
+
+                    return;
+                }
+
+                retryCount++;
+                loadingText.textContent = `Waiting for server... (${retryCount}/${maxRetries})`;
+                await new Promise(resolve => setTimeout(resolve, retryInterval));
+            }
+
+            // Max retries reached
+            showError();
+        }
+
+        function showError() {
+            loadingSpinner.style.display = 'none';
+            loadingText.textContent = '';
+            errorMessage.innerHTML = `
+                Could not connect to the local app server on port ${port}.<br><br>
+                Please make sure the Document Organizer app is running.
+            `;
+            errorState.classList.add('visible');
+        }
+
+        function retryConnection() {
+            retryCount = 0;
+            connectToApp();
+        }
+
+        // Start connection attempt
+        connectToApp();
+
+        // Handle iframe errors
+        appFrame.onerror = () => {
+            showError();
+        };
+    </script>
+</body>
+</html>

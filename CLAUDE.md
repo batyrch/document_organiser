@@ -404,6 +404,58 @@ The site is deployed from the `docs/` folder on the `main` branch.
 - API key storage locations
 - No tracking/analytics on the landing page
 
+## Desktop App (macOS)
+
+### Building the App
+
+```bash
+# Install PyInstaller
+pip install pyinstaller
+
+# Build the app
+python build_macos.py
+
+# Output: dist/Document Organizer.app (~800MB)
+```
+
+### How It Works
+
+1. `build_macos.py` uses PyInstaller to bundle:
+   - Python interpreter
+   - All dependencies (Streamlit, Docling, etc.)
+   - Application files (ui.py, document_organizer.py, etc.)
+
+2. `desktop/launcher.py` is the entry point:
+   - Finds a free port
+   - Starts Streamlit server
+   - Opens browser to `https://batyrch.github.io/document_organiser/app.html`
+   - The hosted page connects to the local Streamlit server
+
+### Files
+
+```
+desktop/
+└── launcher.py       # App launcher (PyInstaller entry point)
+
+build_macos.py        # Build script
+
+dist/
+├── Document Organizer.app    # Built macOS app
+└── Document Organizer/       # Intermediate build files
+```
+
+### Distribution
+
+1. Build the app: `python build_macos.py`
+2. Create GitHub Release with `Document Organizer.app`
+3. Users download from: `https://github.com/batyrch/document_organiser/releases/latest/download/Document-Organizer.app`
+
+### First Launch (Gatekeeper)
+
+Since the app is not code-signed, users must:
+1. Right-click → Open → "Open Anyway"
+2. Or: System Settings → Privacy & Security → "Allow Anyway"
+
 ## Dependencies
 
 Install all dependencies with:
@@ -427,3 +479,6 @@ pip install -r requirements.txt
 - openai (GPT API)
 - boto3 (AWS Bedrock)
 - requests (Ollama)
+
+**Build:**
+- pyinstaller (desktop app bundling)
