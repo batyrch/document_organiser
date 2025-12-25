@@ -55,6 +55,9 @@ def load_config() -> dict:
             "level": "INFO",
             "file": "",
         },
+        "ai": {
+            "model": "claude-sonnet-4-20250514",
+        },
     }
 
     # Try to load from config.yaml
@@ -83,6 +86,8 @@ def load_config() -> dict:
                     config["watch_interval"] = yaml_config["watch_interval"]
                 if "logging" in yaml_config:
                     config["logging"].update(yaml_config["logging"])
+                if "ai" in yaml_config:
+                    config["ai"].update(yaml_config["ai"])
 
                 break  # Use first found config
             except Exception as e:
@@ -500,7 +505,7 @@ Respond with ONLY valid JSON in this exact format:
 }}"""
 
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=CONFIG["ai"]["model"],
             max_tokens=500,
             messages=[{"role": "user", "content": prompt}]
         )

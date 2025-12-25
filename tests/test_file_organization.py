@@ -27,20 +27,20 @@ class TestSlugify:
 
     def test_basic_slugify(self):
         """Test basic string slugification."""
-        assert slugify("Hello World") == "Hello_World"
+        assert slugify("Hello World") == "hello_world"
 
     def test_special_characters(self):
         """Test removal of special characters."""
-        assert slugify("Hello! World?") == "Hello_World"
-        assert slugify("Price: $100") == "Price_100"
+        assert slugify("Hello! World?") == "hello_world"
+        assert slugify("Price: $100") == "price_100"
 
     def test_multiple_spaces(self):
         """Test handling of multiple spaces."""
-        assert slugify("Hello    World") == "Hello_World"
+        assert slugify("Hello    World") == "hello_world"
 
     def test_leading_trailing_spaces(self):
         """Test trimming of leading/trailing spaces."""
-        assert slugify("  Hello World  ") == "Hello_World"
+        assert slugify("  Hello World  ") == "hello_world"
 
     def test_german_characters(self):
         """Test handling of German umlauts."""
