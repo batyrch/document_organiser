@@ -768,6 +768,9 @@ def organize_file(file_path: str, output_dir: str, analysis: dict, extracted_tex
         dest_path = dest_dir / f"{stem}_{counter}{suffix}"
         counter += 1
 
+    # Get file hash before moving (for hash index)
+    file_hash = get_file_hash(file_path)
+
     # Move the file
     shutil.move(file_path, dest_path)
 
@@ -776,6 +779,9 @@ def organize_file(file_path: str, output_dir: str, analysis: dict, extracted_tex
 
     # Add to central search index
     add_to_search_index(output_dir, str(dest_path), original_name, analysis, extracted_text)
+
+    # Add to hash index for duplicate detection
+    add_to_hash_index(output_dir, file_hash, str(dest_path))
 
     # Update JDex index
     update_jdex_index(output_dir, jd_id, jd_area, jd_category, folder_descriptor, year,
@@ -895,6 +901,143 @@ def get_file_hash(file_path: str) -> str:
         for chunk in iter(lambda: f.read(8192), b''):
             hasher.update(chunk)
     return hasher.hexdigest()
+
+
+# ==============================================================================
+# LOCAL HASH INDEX - Duplicate Detection
+# ==============================================================================
+
+def get_hash_index_path(output_dir: str) -> Path:
+    """Get path to the local hash index file."""
+    return Path(output_dir) / ".hash_index.json"
+
+
+def load_hash_index(output_dir: str) -> dict:
+    """Load the local hash index from JSON.
+
+    Returns dict mapping file_hash -> file_path
+    """
+    index_path = get_hash_index_path(output_dir)
+    if index_path.exists():
+        try:
+            with open(index_path, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return {}
+    return {}
+
+
+def save_hash_index(output_dir: str, index: dict):
+    """Save the local hash index to JSON."""
+    index_path = get_hash_index_path(output_dir)
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(index_path, 'w') as f:
+        json.dump(index, f, indent=2, ensure_ascii=False)
+
+
+def add_to_hash_index(output_dir: str, file_hash: str, file_path: str):
+    """Add a file to the hash index."""
+    index = load_hash_index(output_dir)
+    index[file_hash] = file_path
+    save_hash_index(output_dir, index)
+
+
+def find_duplicate_in_index(output_dir: str, file_path: str) -> str | None:
+    """Check if a file's content already exists in the output directory.
+
+    Returns the path to the existing file if duplicate found, None otherwise.
+    """
+    file_hash = get_file_hash(file_path)
+    index = load_hash_index(output_dir)
+
+    existing_path = index.get(file_hash)
+    if existing_path:
+        # Verify the file still exists (could have been deleted)
+        if Path(existing_path).exists():
+            return existing_path
+        else:
+            # File was deleted, remove from index
+            del index[file_hash]
+            save_hash_index(output_dir, index)
+
+    return None
+
+
+def build_hash_index(output_dir: str, force_rebuild: bool = False) -> dict:
+    """Build or rebuild the hash index by scanning all files in output directory.
+
+    Skips system files (starting with .) and metadata files (.meta.json, .analysis.json).
+
+    Args:
+        output_dir: The JD output directory to scan
+        force_rebuild: If True, rebuild from scratch. If False, only add new files.
+
+    Returns:
+        The complete hash index
+    """
+    output_path = Path(output_dir)
+
+    if force_rebuild:
+        index = {}
+        print(f"🔄 Rebuilding hash index from scratch...")
+    else:
+        index = load_hash_index(output_dir)
+        print(f"📋 Loaded existing hash index with {len(index)} entries")
+
+    # Track existing hashes to detect stale entries
+    found_hashes = set()
+    new_files = 0
+
+    # Scan all files in output directory
+    for file_path in output_path.rglob('*'):
+        if not file_path.is_file():
+            continue
+
+        # Skip hidden/system files
+        if file_path.name.startswith('.'):
+            continue
+
+        # Skip metadata sidecar files
+        if file_path.name.endswith('.meta.json') or file_path.name.endswith('.analysis.json'):
+            continue
+
+        # Skip unsupported formats
+        if file_path.suffix.lower() not in SUPPORTED_FORMATS:
+            continue
+
+        # Skip inbox directory
+        try:
+            relative = file_path.relative_to(output_path)
+            if relative.parts[0] == "00-09 System" and len(relative.parts) > 1 and relative.parts[1] == "01 Inbox":
+                continue
+        except (ValueError, IndexError):
+            pass
+
+        # Hash the file
+        try:
+            file_hash = get_file_hash(str(file_path))
+            found_hashes.add(file_hash)
+
+            if file_hash not in index:
+                index[file_hash] = str(file_path)
+                new_files += 1
+                if force_rebuild:
+                    print(f"  📄 Indexed: {file_path.name}")
+        except (IOError, OSError) as e:
+            logger.warning(f"Could not hash {file_path}: {e}")
+
+    # Remove stale entries (files that no longer exist)
+    stale_hashes = set(index.keys()) - found_hashes
+    for stale_hash in stale_hashes:
+        del index[stale_hash]
+
+    if stale_hashes:
+        print(f"🗑️  Removed {len(stale_hashes)} stale entries")
+
+    save_hash_index(output_dir, index)
+    print(f"✅ Hash index complete: {len(index)} files indexed ({new_files} new)")
+
+    return index
 
 
 def is_file_processed(file_path: str, processed: dict) -> bool:
@@ -1132,6 +1275,20 @@ def process_file(file_path: str, output_dir: str, jd_areas: dict = None, mode: s
 
     print(f"\n📄 Processing: {Path(file_path).name}")
 
+    # Step 0: Check for duplicates in hash index
+    existing_file = find_duplicate_in_index(output_dir, file_path)
+    if existing_file:
+        print(f"  ⚠️  Duplicate detected!")
+        print(f"  📍 Already exists: {existing_file}")
+        # Remove the duplicate from inbox
+        Path(file_path).unlink()
+        print(f"  🗑️  Removed duplicate from inbox")
+        return {
+            "success": False,
+            "error": "Duplicate file",
+            "duplicate_of": existing_file
+        }
+
     # Step 1: Extract text
     print("  📖 Extracting text...")
     result = extract_text_with_docling(file_path)
@@ -1329,6 +1486,9 @@ Examples:
   # Process all files once (don't watch)
   python document_organizer.py --inbox ./inbox --output ./jd_documents --once
 
+  # Rebuild hash index (scan all files in output, update .hash_index.json)
+  python document_organizer.py --rebuild-index
+
 Modes:
   claude-code  Use Claude Code CLI (works with Max subscription, no API key needed)
   api          Use Anthropic API (requires ANTHROPIC_API_KEY env variable)
@@ -1355,6 +1515,8 @@ JD Areas:
     parser.add_argument("--mode", "-m", choices=["claude-code", "api", "keywords"],
                         default="claude-code", help="Categorization mode (default: claude-code)")
     parser.add_argument("--interval", type=int, default=5, help="Watch interval in seconds (default: 5)")
+    parser.add_argument("--rebuild-index", action="store_true",
+                        help="Rebuild hash index by scanning all files in output directory")
 
     # Legacy flag for backwards compatibility
     parser.add_argument("--no-llm", action="store_true", help="(deprecated) Use --mode keywords instead")
@@ -1365,6 +1527,13 @@ JD Areas:
     mode = args.mode
     if args.no_llm:
         mode = "keywords"
+
+    # Rebuild hash index mode
+    if args.rebuild_index:
+        if not args.output:
+            parser.error("--output is required for --rebuild-index")
+        build_hash_index(args.output, force_rebuild=True)
+        return
 
     # Validate required paths
     if not args.inbox:
