@@ -82,6 +82,9 @@ Image.MAX_IMAGE_PIXELS = 500_000_000  # 500 megapixels
 # CONFIGURATION - JOHNNY.DECIMAL SYSTEM
 # ==============================================================================
 
+# Supported document formats for processing
+SUPPORTED_FORMATS = {'.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.docx', '.pptx', '.xlsx', '.txt', '.html'}
+
 # Johnny.Decimal Areas and Categories
 # Format: AC.ID → Area-Category.Item (e.g., 14.03 = Finance area, Receipts category, item 03)
 JD_AREAS = {
@@ -827,8 +830,8 @@ def add_to_search_index(output_dir: str, doc_path: str, original_name: str,
 
 
 def get_file_hash(file_path: str) -> str:
-    """Generate a hash based on file content."""
-    hasher = hashlib.md5()
+    """Generate a hash based on file content using SHA256."""
+    hasher = hashlib.sha256()
     with open(file_path, 'rb') as f:
         # Read in chunks for large files
         for chunk in iter(lambda: f.read(8192), b''):
@@ -984,7 +987,6 @@ def preprocess_inbox(inbox_dir: str, jd_areas: dict = None, mode: str = "claude-
     print(f"🤖 Mode: {mode}")
     print(f"📂 Scanning subfolders recursively\n")
 
-    supported_extensions = {'.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.docx', '.pptx', '.xlsx', '.txt', '.html'}
     inbox = Path(inbox_dir)
 
     results = []
@@ -992,7 +994,7 @@ def preprocess_inbox(inbox_dir: str, jd_areas: dict = None, mode: str = "claude-
     for file_path in inbox.rglob('*'):
         if not file_path.is_file():
             continue
-        if file_path.suffix.lower() not in supported_extensions:
+        if file_path.suffix.lower() not in SUPPORTED_FORMATS:
             continue
         # Skip analysis files themselves
         if file_path.name.endswith('.analysis.json'):
@@ -1029,8 +1031,6 @@ def watch_preprocess(inbox_dir: str, jd_areas: dict = None, mode: str = "claude-
     print(f"🔄 Checking every {interval} seconds (Ctrl+C to stop)")
     print(f"📝 Files will be analyzed but NOT moved - use UI to classify\n")
 
-    supported_extensions = {'.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.docx', '.pptx', '.xlsx', '.txt', '.html'}
-
     while True:
         try:
             inbox = Path(inbox_dir)
@@ -1039,7 +1039,7 @@ def watch_preprocess(inbox_dir: str, jd_areas: dict = None, mode: str = "claude-
             for file_path in inbox.rglob('*'):
                 if not file_path.is_file():
                     continue
-                if file_path.suffix.lower() not in supported_extensions:
+                if file_path.suffix.lower() not in SUPPORTED_FORMATS:
                     continue
                 # Skip analysis files
                 if file_path.name.endswith('.analysis.json'):
@@ -1141,8 +1141,6 @@ def watch_folder(inbox_dir: str, output_dir: str, jd_areas: dict = None, mode: s
     processed = load_processed_files(output_dir)
     print(f"📋 Loaded {len(processed)} previously processed files from database\n")
 
-    supported_extensions = {'.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.docx', '.pptx', '.xlsx', '.txt', '.html'}
-
     while True:
         try:
             inbox = Path(inbox_dir)
@@ -1151,7 +1149,7 @@ def watch_folder(inbox_dir: str, output_dir: str, jd_areas: dict = None, mode: s
                 if not file_path.is_file():
                     continue
 
-                if file_path.suffix.lower() not in supported_extensions:
+                if file_path.suffix.lower() not in SUPPORTED_FORMATS:
                     continue
 
                 # Get file hash before processing (file will be moved)
@@ -1193,7 +1191,6 @@ def process_once(inbox_dir: str, output_dir: str, jd_areas: dict = None, mode: s
     processed = load_processed_files(output_dir)
     print(f"📋 Loaded {len(processed)} previously processed files from database\n")
 
-    supported_extensions = {'.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.docx', '.pptx', '.xlsx', '.txt', '.html'}
     inbox = Path(inbox_dir)
 
     results = []
@@ -1201,7 +1198,7 @@ def process_once(inbox_dir: str, output_dir: str, jd_areas: dict = None, mode: s
     for file_path in inbox.iterdir():
         if not file_path.is_file():
             continue
-        if file_path.suffix.lower() not in supported_extensions:
+        if file_path.suffix.lower() not in SUPPORTED_FORMATS:
             continue
 
         # Get file hash before processing (file will be moved)

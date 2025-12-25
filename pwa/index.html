@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Organizer</title>
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --success: #10B981;
+            --warning: #F59E0B;
+            --danger: #EF4444;
+            --gray-50: #F9FAFB;
+            --gray-100: #F3F4F6;
+            --gray-200: #E5E7EB;
+            --gray-600: #4B5563;
+            --gray-800: #1F2937;
+            --gray-900: #111827;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, var(--gray-50) 0%, var(--gray-100) 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: var(--gray-800);
+        }
+
+        .container {
+            max-width: 480px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .tagline {
+            color: var(--gray-600);
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
+        .status-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            margin-bottom: 2rem;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.checking {
+            background: var(--warning);
+        }
+
+        .status-dot.running {
+            background: var(--success);
+            animation: none;
+        }
+
+        .status-dot.stopped {
+            background: var(--danger);
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .launch-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: white;
+            background: var(--primary);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .launch-btn:hover:not(:disabled) {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .launch-btn:disabled {
+            background: var(--gray-200);
+            color: var(--gray-600);
+            cursor: not-allowed;
+        }
+
+        .instructions {
+            display: none;
+            text-align: left;
+            background: var(--gray-50);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .instructions.visible {
+            display: block;
+        }
+
+        .instructions h3 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--gray-800);
+            margin-bottom: 1rem;
+        }
+
+        .instructions ol {
+            margin-left: 1.25rem;
+            color: var(--gray-600);
+            font-size: 0.9rem;
+            line-height: 1.8;
+        }
+
+        .instructions code {
+            background: var(--gray-200);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+
+        .download-section {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .download-link {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .download-link:hover {
+            text-decoration: underline;
+        }
+
+        .footer {
+            margin-top: 2rem;
+            color: var(--gray-600);
+            font-size: 0.85rem;
+        }
+
+        .footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .port-input {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            color: var(--gray-600);
+        }
+
+        .port-input input {
+            width: 70px;
+            padding: 0.3rem 0.5rem;
+            border: 1px solid var(--gray-200);
+            border-radius: 4px;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+
+        .retry-btn {
+            background: none;
+            border: none;
+            color: var(--primary);
+            cursor: pointer;
+            font-size: 0.85rem;
+            padding: 0.3rem 0.5rem;
+        }
+
+        .retry-btn:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">📁</div>
+        <h1>Document Organizer</h1>
+        <p class="tagline">AI-powered document organization with Johnny.Decimal</p>
+
+        <div class="status-card">
+            <div class="status-indicator">
+                <span class="status-dot checking" id="statusDot"></span>
+                <span id="statusText">Checking if app is running...</span>
+            </div>
+
+            <button class="launch-btn" id="launchBtn" disabled>
+                <span id="btnIcon">⏳</span>
+                <span id="btnText">Checking...</span>
+            </button>
+
+            <div class="port-input">
+                <label for="portInput">Port:</label>
+                <input type="number" id="portInput" value="8501" min="1" max="65535">
+                <button class="retry-btn" id="retryBtn">Check</button>
+            </div>
+
+            <div class="instructions" id="instructions">
+                <h3>To start the app:</h3>
+                <ol>
+                    <li>Open Terminal</li>
+                    <li>Navigate to the project folder</li>
+                    <li>Run: <code>streamlit run ui.py</code></li>
+                    <li>Or launch the desktop app</li>
+                </ol>
+                <div class="download-section">
+                    <a href="#download" class="download-link">Download Desktop App →</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            Organizes documents using the
+            <a href="https://johnnydecimal.com/" target="_blank" rel="noopener">Johnny.Decimal</a> system
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            host: 'localhost',
+            defaultPort: 8501,
+            checkInterval: 3000,  // Check every 3 seconds when not running
+            timeout: 2000,        // Request timeout
+        };
+
+        const elements = {
+            statusDot: document.getElementById('statusDot'),
+            statusText: document.getElementById('statusText'),
+            launchBtn: document.getElementById('launchBtn'),
+            btnIcon: document.getElementById('btnIcon'),
+            btnText: document.getElementById('btnText'),
+            instructions: document.getElementById('instructions'),
+            portInput: document.getElementById('portInput'),
+            retryBtn: document.getElementById('retryBtn'),
+        };
+
+        let isRunning = false;
+        let checkIntervalId = null;
+
+        function getPort() {
+            return parseInt(elements.portInput.value, 10) || CONFIG.defaultPort;
+        }
+
+        function getAppUrl() {
+            return `http://${CONFIG.host}:${getPort()}`;
+        }
+
+        function updateUI(status) {
+            // status: 'checking', 'running', 'stopped'
+            elements.statusDot.className = `status-dot ${status}`;
+
+            switch (status) {
+                case 'checking':
+                    elements.statusText.textContent = 'Checking if app is running...';
+                    elements.launchBtn.disabled = true;
+                    elements.btnIcon.textContent = '⏳';
+                    elements.btnText.textContent = 'Checking...';
+                    elements.instructions.classList.remove('visible');
+                    break;
+                case 'running':
+                    elements.statusText.textContent = 'App is running ✓';
+                    elements.launchBtn.disabled = false;
+                    elements.btnIcon.textContent = '🚀';
+                    elements.btnText.textContent = 'Launch Document Organizer';
+                    elements.instructions.classList.remove('visible');
+                    break;
+                case 'stopped':
+                    elements.statusText.textContent = 'App is not running';
+                    elements.launchBtn.disabled = true;
+                    elements.btnIcon.textContent = '⚠️';
+                    elements.btnText.textContent = 'Start the app first';
+                    elements.instructions.classList.add('visible');
+                    break;
+            }
+        }
+
+        async function checkServerStatus() {
+            updateUI('checking');
+
+            const url = getAppUrl();
+
+            try {
+                // Use an image request as a connectivity check
+                // This works around CORS restrictions
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), CONFIG.timeout);
+
+                // Try to fetch the healthz endpoint or favicon
+                // Using no-cors mode - we just care if the request succeeds
+                await fetch(`${url}/healthz`, {
+                    mode: 'no-cors',
+                    signal: controller.signal,
+                });
+
+                clearTimeout(timeoutId);
+                isRunning = true;
+                updateUI('running');
+
+                // Stop checking once running
+                if (checkIntervalId) {
+                    clearInterval(checkIntervalId);
+                    checkIntervalId = null;
+                }
+            } catch (error) {
+                isRunning = false;
+                updateUI('stopped');
+
+                // Start periodic checking if not already
+                if (!checkIntervalId) {
+                    checkIntervalId = setInterval(checkServerStatus, CONFIG.checkInterval);
+                }
+            }
+        }
+
+        function launchApp() {
+            if (isRunning) {
+                window.open(getAppUrl(), '_blank');
+            }
+        }
+
+        // Event listeners
+        elements.launchBtn.addEventListener('click', launchApp);
+        elements.retryBtn.addEventListener('click', checkServerStatus);
+        elements.portInput.addEventListener('change', checkServerStatus);
+
+        // Keyboard shortcut: Enter to launch if running
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && isRunning) {
+                launchApp();
+            }
+        });
+
+        // Initial check
+        checkServerStatus();
+    </script>
+</body>
+</html>

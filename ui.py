@@ -12,6 +12,7 @@ Workflow:
 
 import streamlit as st
 import json
+import shutil
 from pathlib import Path
 from datetime import datetime
 import base64
@@ -19,6 +20,7 @@ import base64
 # Import from main module
 from document_organizer import (
     JD_AREAS,
+    SUPPORTED_FORMATS,
     extract_text_with_docling,
     extract_text_fallback,
     categorize_with_claude_code,
@@ -36,6 +38,9 @@ from document_organizer import (
     DEFAULT_JD_INBOX,
     DEFAULT_JD_OUTPUT,
 )
+
+# Import settings management
+from settings import get_settings, get_config_dir
 
 # Page config
 st.set_page_config(
@@ -184,6 +189,38 @@ def show_hand_loading(text: str = "Loading..."):
     st.markdown(HAND_LOADING_HTML.format(text=text), unsafe_allow_html=True)
 
 from contextlib import contextmanager
+import subprocess
+import platform
+
+
+def reveal_in_file_manager(file_path: Path):
+    """Open the system file manager and select/highlight the given file.
+
+    Works on macOS, Windows, and Linux.
+    """
+    system = platform.system()
+    try:
+        if system == "Darwin":  # macOS
+            subprocess.run(["open", "-R", str(file_path)], check=False)
+        elif system == "Windows":
+            subprocess.run(["explorer", "/select,", str(file_path)], check=False)
+        else:  # Linux and others
+            # xdg-open opens the parent folder (can't select specific file)
+            subprocess.run(["xdg-open", str(file_path.parent)], check=False)
+    except (OSError, subprocess.SubprocessError):
+        pass  # Silently fail if file manager can't be opened
+
+
+def get_file_manager_name() -> str:
+    """Get the name of the system file manager for button labels."""
+    system = platform.system()
+    if system == "Darwin":
+        return "Finder"
+    elif system == "Windows":
+        return "Explorer"
+    else:
+        return "Files"
+
 
 @contextmanager
 def hand_spinner(text: str = "Loading..."):
@@ -226,7 +263,6 @@ def get_inbox_files(inbox_dir: str) -> list[tuple[Path, bool, dict | None]]:
     Recursively scans subfolders to find all documents.
     Returns list of (file_path, has_analysis, analysis_data) tuples.
     """
-    supported = {'.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.docx', '.pptx', '.xlsx', '.txt', '.html'}
     inbox = Path(inbox_dir)
     if not inbox.exists():
         return []
@@ -234,7 +270,7 @@ def get_inbox_files(inbox_dir: str) -> list[tuple[Path, bool, dict | None]]:
     files = []
     # Use rglob to recursively find all files in subfolders
     for f in sorted(inbox.rglob('*')):
-        if f.is_file() and f.suffix.lower() in supported:
+        if f.is_file() and f.suffix.lower() in SUPPORTED_FORMATS:
             analysis = load_analysis(str(f))
             files.append((f, analysis is not None, analysis))
     return files
@@ -246,7 +282,6 @@ def get_folder_files(folder_path: str, recursive: bool = True) -> list[tuple[Pat
     Loads metadata from .meta.json sidecar files (for organized files).
     Returns list of (file_path, has_metadata, metadata) tuples.
     """
-    supported = {'.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.docx', '.pptx', '.xlsx', '.txt', '.html'}
     folder = Path(folder_path)
     if not folder.exists():
         return []
@@ -255,7 +290,7 @@ def get_folder_files(folder_path: str, recursive: bool = True) -> list[tuple[Pat
     file_iter = folder.rglob("*") if recursive else folder.iterdir()
 
     for f in sorted(file_iter):
-        if f.is_file() and f.suffix.lower() in supported:
+        if f.is_file() and f.suffix.lower() in SUPPORTED_FORMATS:
             # Try .meta.json first (organized files)
             meta_path = f.with_suffix(f.suffix + ".meta.json")
             metadata = None
@@ -335,10 +370,9 @@ def get_all_organized_files(output_dir: str) -> list[tuple[Path, dict | None]]:
         return []
 
     files = []
-    supported = {'.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.docx', '.pptx', '.xlsx', '.txt', '.html'}
 
     for f in output.rglob("*"):
-        if f.is_file() and f.suffix.lower() in supported:
+        if f.is_file() and f.suffix.lower() in SUPPORTED_FORMATS:
             # Load metadata if exists
             meta_path = f.with_suffix(f.suffix + ".meta.json")
             meta = None
@@ -346,7 +380,7 @@ def get_all_organized_files(output_dir: str) -> list[tuple[Path, dict | None]]:
                 try:
                     with open(meta_path, 'r') as mf:
                         meta = json.load(mf)
-                except:
+                except (json.JSONDecodeError, IOError):
                     pass
             files.append((f, meta))
 
@@ -400,10 +434,10 @@ def reanalyze_file(file_path: Path):
 
 
 def cleanup_orphaned_analysis_files(folder: Path) -> int:
-    """Remove orphaned .analysis.json files in a folder, keeping only the latest one.
+    """Remove orphaned .analysis.json files in a folder.
 
-    An orphaned analysis file is one where no matching document exists.
-    If multiple orphans exist, keep the most recent one (by modification time).
+    An orphaned analysis file is one where no matching document exists
+    (e.g., the document was deleted or renamed).
 
     Returns the number of deleted files.
     """
@@ -415,7 +449,7 @@ def cleanup_orphaned_analysis_files(folder: Path) -> int:
     if not analysis_files:
         return 0
 
-    # Separate into matched and orphaned
+    # Find orphaned analysis files (no matching document)
     orphaned = []
     for analysis_path in analysis_files:
         # Get the original document name by removing .analysis.json suffix
@@ -427,13 +461,10 @@ def cleanup_orphaned_analysis_files(folder: Path) -> int:
     if not orphaned:
         return 0
 
-    # Sort orphaned by modification time (newest first) and keep the latest
-    orphaned.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-
-    # Delete all orphans (including the newest one)
+    # Delete all orphaned analysis files
     deleted = 0
-    for old_analysis in orphaned:
-        old_analysis.unlink()
+    for orphan in orphaned:
+        orphan.unlink()
         deleted += 1
 
     return deleted
@@ -442,10 +473,16 @@ def cleanup_orphaned_analysis_files(folder: Path) -> int:
 def main():
     st.title("📁 Document Organizer")
 
+    # Get settings
+    settings = get_settings()
+
     # Sidebar for settings
     with st.sidebar:
-        st.header("Settings")
-        output_dir = st.text_input("Output Directory", value=DEFAULT_JD_OUTPUT)
+        # Use settings for directories (read-only display, edit in Settings page)
+        output_dir = settings.output_dir
+        default_inbox = settings.inbox_dir
+
+        st.caption(f"Library: `{Path(output_dir).name}`")
 
         st.divider()
 
@@ -504,8 +541,9 @@ def main():
             analyzed = sum(1 for _, has, _ in all_files if has)
             inbox_dir = current_folder  # Use for compatibility
         else:
-            # Inbox mode
-            inbox_dir = st.text_input("Inbox Directory", value=DEFAULT_JD_INBOX)
+            # Inbox mode - use settings
+            inbox_dir = default_inbox
+            st.caption(f"Inbox: `{Path(inbox_dir).name}`")
             all_files = get_inbox_files(inbox_dir)
             analyzed = sum(1 for _, has, _ in all_files if has)
 
@@ -759,12 +797,12 @@ def main():
                         st.warning("Click Delete again to confirm")
 
             with col_act4:
-                if st.button("📂 Reveal in Finder", key="bulk_reveal", use_container_width=True):
-                    import subprocess
+                fm_name = get_file_manager_name()
+                if st.button(f"📂 Reveal in {fm_name}", key="bulk_reveal", use_container_width=True):
                     for file_str in st.session_state.selected_files:
                         file_path = Path(file_str)
                         if file_path.exists():
-                            subprocess.run(["open", "-R", str(file_path)])
+                            reveal_in_file_manager(file_path)
                             break  # Only reveal first selected file
 
             st.divider()
@@ -1018,10 +1056,381 @@ def main():
                     st.warning("Click Delete again to confirm")
 
         with col_a5:
-            if st.button("📂 Reveal in Finder", key="single_reveal", use_container_width=True):
-                import subprocess
-                subprocess.run(["open", "-R", str(file_path)])
+            fm_name = get_file_manager_name()
+            if st.button(f"📂 Reveal in {fm_name}", key="single_reveal", use_container_width=True):
+                reveal_in_file_manager(file_path)
+
+
+def render_settings_page():
+    """Render the Settings page for configuring the application."""
+    st.title("Settings")
+
+    settings = get_settings()
+
+    # Check if this is first run
+    if not settings.setup_complete:
+        st.info("Welcome! Please configure your settings below to get started.")
+
+    # Create tabs for different settings categories
+    tab_dirs, tab_ai, tab_about = st.tabs(["Directories", "AI Provider", "About"])
+
+    with tab_dirs:
+        st.subheader("Directory Configuration")
+
+        st.markdown("""
+        Configure where your documents are stored. The **Output Directory** is the root
+        of your Johnny.Decimal folder structure. The **Inbox** is where you place new
+        documents for processing.
+        """)
+
+        # Output directory
+        current_output = settings.get("output_dir", "")
+        new_output = st.text_input(
+            "Output Directory (JD Root)",
+            value=current_output,
+            placeholder=str(Path.home() / "Documents" / "jd_documents"),
+            help="Root folder for your organized documents"
+        )
+
+        # Inbox directory
+        current_inbox = settings.get("inbox_dir", "")
+        default_inbox = str(Path(new_output or current_output) / "00-09 System" / "01 Inbox") if (new_output or current_output) else ""
+
+        use_default_inbox = st.checkbox(
+            "Use default inbox location",
+            value=not current_inbox,
+            help=f"Default: {{output_dir}}/00-09 System/01 Inbox"
+        )
+
+        if use_default_inbox:
+            st.text_input(
+                "Inbox Directory",
+                value=default_inbox,
+                disabled=True,
+                help="Derived from output directory"
+            )
+            new_inbox = ""
+        else:
+            new_inbox = st.text_input(
+                "Inbox Directory",
+                value=current_inbox,
+                placeholder=default_inbox,
+                help="Where to place documents for processing"
+            )
+
+        # Validate and show status
+        col1, col2 = st.columns(2)
+        with col1:
+            output_path = Path(new_output) if new_output else None
+            if output_path:
+                if output_path.exists():
+                    st.success(f"Output directory exists")
+                else:
+                    st.warning("Directory will be created")
+
+        with col2:
+            inbox_path = Path(new_inbox) if new_inbox else Path(default_inbox) if default_inbox else None
+            if inbox_path:
+                if inbox_path.exists():
+                    st.success(f"Inbox directory exists")
+                else:
+                    st.warning("Directory will be created")
+
+        # Save button for directories
+        if st.button("Save Directory Settings", type="primary", key="save_dirs"):
+            if new_output:
+                settings.set("output_dir", new_output)
+            settings.set("inbox_dir", new_inbox)
+
+            # Create directories if they don't exist
+            success, error = settings.create_directories()
+            if success:
+                st.success("Settings saved and directories created!")
+            else:
+                st.error(f"Error creating directories: {error}")
+
+    with tab_ai:
+        st.subheader("AI Provider Configuration")
+
+        st.markdown("""
+        Choose how documents are analyzed and categorized. You can use cloud AI services
+        (requires API key), local AI (Ollama), or simple keyword matching (no AI).
+        """)
+
+        # Provider selection
+        provider_options = {
+            "auto": "Auto-detect (recommended)",
+            "anthropic": "Anthropic Claude (API key required)",
+            "openai": "OpenAI GPT (API key required)",
+            "ollama": "Ollama (local, free)",
+            "claude-code": "Claude Code CLI (requires Claude Max subscription)",
+            "keywords": "Keywords only (no AI, always works)",
+        }
+
+        current_provider = settings.get("ai_provider", "auto")
+        selected_provider = st.selectbox(
+            "AI Provider",
+            options=list(provider_options.keys()),
+            format_func=lambda x: provider_options[x],
+            index=list(provider_options.keys()).index(current_provider) if current_provider in provider_options else 0,
+        )
+
+        # Show relevant settings based on provider
+        st.divider()
+
+        if selected_provider in ["auto", "anthropic"]:
+            st.markdown("**Anthropic Claude Settings**")
+            anthropic_key = st.text_input(
+                "Anthropic API Key",
+                value=settings.get("anthropic_api_key", ""),
+                type="password",
+                help="Get your key at https://console.anthropic.com/"
+            )
+
+            anthropic_models = ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"]
+            current_model = settings.get("anthropic_model", "claude-sonnet-4-20250514")
+            anthropic_model = st.selectbox(
+                "Model",
+                anthropic_models,
+                index=anthropic_models.index(current_model) if current_model in anthropic_models else 0,
+                key="anthropic_model_select"
+            )
+
+        if selected_provider in ["auto", "openai"]:
+            st.markdown("**OpenAI Settings**")
+            openai_key = st.text_input(
+                "OpenAI API Key",
+                value=settings.get("openai_api_key", ""),
+                type="password",
+                help="Get your key at https://platform.openai.com/api-keys"
+            )
+
+            openai_models = ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]
+            current_model = settings.get("openai_model", "gpt-4o")
+            openai_model = st.selectbox(
+                "Model",
+                openai_models,
+                index=openai_models.index(current_model) if current_model in openai_models else 0,
+                key="openai_model_select"
+            )
+
+        if selected_provider in ["auto", "ollama"]:
+            st.markdown("**Ollama Settings** (Local AI)")
+            ollama_url = st.text_input(
+                "Ollama URL",
+                value=settings.get("ollama_url", "http://localhost:11434"),
+                help="Usually http://localhost:11434"
+            )
+
+            ollama_model = st.text_input(
+                "Model",
+                value=settings.get("ollama_model", "llama3.2"),
+                help="e.g., llama3.2, mistral, mixtral"
+            )
+
+            # Test Ollama connection
+            if st.button("Test Ollama Connection", key="test_ollama"):
+                try:
+                    import requests
+                    response = requests.get(f"{ollama_url}/api/tags", timeout=5)
+                    if response.status_code == 200:
+                        models = [m["name"] for m in response.json().get("models", [])]
+                        if models:
+                            st.success(f"Connected! Available models: {', '.join(models[:5])}")
+                        else:
+                            st.warning("Connected but no models found. Run `ollama pull llama3.2`")
+                    else:
+                        st.error(f"Connection failed: {response.status_code}")
+                except Exception as e:
+                    st.error(f"Could not connect to Ollama: {e}")
+
+        if selected_provider == "claude-code":
+            st.markdown("**Claude Code CLI**")
+            st.info("This uses the `claude` CLI tool which works with Claude Max subscription.")
+
+            # Check if claude CLI is available
+            if shutil.which("claude"):
+                st.success("Claude CLI is installed and available")
+            else:
+                st.error("Claude CLI not found. Install with: `npm install -g @anthropic-ai/claude-code`")
+
+        if selected_provider == "keywords":
+            st.info("Keyword matching uses simple pattern matching to categorize documents. No AI or API keys required.")
+
+        # Show effective provider
+        st.divider()
+        effective = settings.get_effective_provider()
+        st.caption(f"Currently active provider: **{effective}**")
+
+        # Save button for AI settings
+        if st.button("Save AI Settings", type="primary", key="save_ai"):
+            updates = {"ai_provider": selected_provider}
+
+            if selected_provider in ["auto", "anthropic"]:
+                updates["anthropic_api_key"] = anthropic_key
+                updates["anthropic_model"] = anthropic_model
+            if selected_provider in ["auto", "openai"]:
+                updates["openai_api_key"] = openai_key
+                updates["openai_model"] = openai_model
+            if selected_provider in ["auto", "ollama"]:
+                updates["ollama_url"] = ollama_url
+                updates["ollama_model"] = ollama_model
+
+            settings.update(updates)
+            st.success("AI settings saved!")
+
+    with tab_about:
+        st.subheader("About Document Organizer")
+
+        st.markdown("""
+        **Document Organizer** automatically organizes your scanned documents using
+        AI-powered categorization with the [Johnny.Decimal](https://johnnydecimal.com/) system.
+
+        ### How it works
+
+        1. **Drop documents** into your Inbox folder
+        2. **AI analyzes** each document to determine its type, issuer, and category
+        3. **Review suggestions** in this UI and adjust if needed
+        4. **File documents** to their proper location in your JD structure
+
+        ### Johnny.Decimal Structure
+
+        Documents are organized into Areas and Categories:
+
+        - **10-19 Finance** - Banking, Taxes, Insurance, Receipts
+        - **20-29 Medical** - Records, Insurance, Prescriptions
+        - **30-39 Legal** - Contracts, Property, Identity
+        - **40-49 Work** - Employment, Projects, Certifications
+        - **50-59 Personal** - Education, Travel, Memberships
+
+        ### Links
+
+        - [Johnny.Decimal System](https://johnnydecimal.com/)
+        - [Project Documentation](https://github.com/yourusername/document-organizer)
+        """)
+
+        st.divider()
+
+        # Show config location
+        st.caption(f"Settings stored in: `{get_config_dir()}`")
+
+        # Reset settings
+        with st.expander("Advanced"):
+            if st.button("Reset All Settings", type="secondary"):
+                if st.session_state.get("confirm_reset"):
+                    settings.reset()
+                    st.success("Settings reset to defaults")
+                    st.session_state.confirm_reset = False
+                    st.rerun()
+                else:
+                    st.session_state.confirm_reset = True
+                    st.warning("Click again to confirm reset")
+
+    # Mark setup as complete if user has configured directories
+    if not settings.setup_complete and settings.get("output_dir"):
+        settings.set("setup_complete", True)
+
+
+def render_app():
+    """Main app rendering - choose between setup wizard or main app."""
+    settings = get_settings()
+
+    # Check if first run - show setup wizard
+    if not settings.setup_complete:
+        render_setup_wizard()
+        return
+
+    # Normal app flow - use page navigation
+    page = st.sidebar.radio(
+        "Navigation",
+        ["Documents", "Settings"],
+        key="nav_page"
+    )
+
+    if page == "Documents":
+        main()
+    else:
+        render_settings_page()
+
+
+def render_setup_wizard():
+    """First-run setup wizard."""
+    st.title("Welcome to Document Organizer")
+
+    st.markdown("""
+    Let's get you set up! This wizard will help you configure the essential settings.
+    """)
+
+    settings = get_settings()
+
+    # Step 1: Directories
+    st.subheader("Step 1: Choose your document location")
+
+    st.markdown("""
+    Where would you like to store your organized documents?
+    This will be the root of your Johnny.Decimal folder structure.
+    """)
+
+    default_output = str(Path.home() / "Documents" / "jd_documents")
+    output_dir = st.text_input(
+        "Document Library Location",
+        value=settings.get("output_dir") or default_output,
+        help="Your organized documents will be stored here"
+    )
+
+    # Step 2: AI Provider
+    st.subheader("Step 2: Choose AI provider (optional)")
+
+    st.markdown("""
+    AI helps categorize your documents automatically. Choose one:
+    """)
+
+    ai_choice = st.radio(
+        "AI Provider",
+        [
+            ("ollama", "Ollama (free, runs locally) - Recommended for privacy"),
+            ("anthropic", "Anthropic Claude (requires API key)"),
+            ("keywords", "No AI (keyword matching only)"),
+        ],
+        format_func=lambda x: x[1],
+        index=0,
+    )
+    selected_ai = ai_choice[0]
+
+    if selected_ai == "anthropic":
+        api_key = st.text_input(
+            "Anthropic API Key",
+            type="password",
+            help="Get your key at https://console.anthropic.com/"
+        )
+    elif selected_ai == "ollama":
+        st.info("Make sure Ollama is installed and running. Visit https://ollama.ai to install.")
+
+    # Complete setup
+    st.divider()
+
+    if st.button("Complete Setup", type="primary"):
+        # Save settings
+        updates = {
+            "output_dir": output_dir,
+            "inbox_dir": "",  # Use default
+            "ai_provider": selected_ai,
+            "setup_complete": True,
+        }
+
+        if selected_ai == "anthropic" and api_key:
+            updates["anthropic_api_key"] = api_key
+
+        settings.update(updates)
+
+        # Create directories
+        success, error = settings.create_directories()
+        if success:
+            st.success("Setup complete! Redirecting...")
+            st.rerun()
+        else:
+            st.error(f"Error creating directories: {error}")
 
 
 if __name__ == "__main__":
-    main()
+    render_app()
