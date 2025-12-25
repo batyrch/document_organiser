@@ -26,11 +26,69 @@ from datetime import datetime
 from typing import Optional
 import time
 
+import yaml
 from dotenv import load_dotenv
 from PIL import Image
 
 # Load environment variables from .env file
 load_dotenv()
+
+
+# ==============================================================================
+# CONFIGURATION LOADING
+# ==============================================================================
+
+def load_config() -> dict:
+    """Load configuration from config.yaml, with fallbacks to environment variables."""
+    config = {
+        "paths": {
+            "output_dir": os.getenv("OUTPUT_DIR", str(Path.home() / "Documents" / "jd_documents")),
+            "inbox_dir": os.getenv("INBOX_DIR", str(Path.home() / "Documents" / "jd_documents" / "00-09 System" / "01 Inbox")),
+        },
+        "mode": "claude-code",
+        "watch_interval": 5,
+        "logging": {
+            "level": "INFO",
+            "file": "",
+        },
+    }
+
+    # Try to load from config.yaml
+    config_paths = [
+        Path(__file__).parent / "config.local.yaml",  # Local overrides first
+        Path(__file__).parent / "config.yaml",
+    ]
+
+    for config_path in config_paths:
+        if config_path.exists():
+            try:
+                with open(config_path, 'r') as f:
+                    yaml_config = yaml.safe_load(f) or {}
+
+                # Merge paths
+                if "paths" in yaml_config:
+                    for key, value in yaml_config["paths"].items():
+                        if value:
+                            # Expand ~ to home directory
+                            config["paths"][key] = os.path.expanduser(value)
+
+                # Merge other settings
+                if "mode" in yaml_config:
+                    config["mode"] = yaml_config["mode"]
+                if "watch_interval" in yaml_config:
+                    config["watch_interval"] = yaml_config["watch_interval"]
+                if "logging" in yaml_config:
+                    config["logging"].update(yaml_config["logging"])
+
+                break  # Use first found config
+            except Exception as e:
+                print(f"Warning: Could not load {config_path}: {e}")
+
+    return config
+
+
+# Load global config
+CONFIG = load_config()
 
 # ==============================================================================
 # LOGGING CONFIGURATION
@@ -1235,15 +1293,9 @@ def process_once(inbox_dir: str, output_dir: str, jd_areas: dict = None, mode: s
 # CLI
 # ==============================================================================
 
-# Default paths for Johnny.Decimal system (portable - uses home directory)
-DEFAULT_JD_OUTPUT = os.getenv(
-    "OUTPUT_DIR",
-    str(Path.home() / "Documents" / "jd_documents")
-)
-DEFAULT_JD_INBOX = os.getenv(
-    "INBOX_DIR",
-    str(Path.home() / "Documents" / "jd_documents" / "00-09 System" / "01 Inbox")
-)
+# Default paths from config.yaml (with env var and home directory fallbacks)
+DEFAULT_JD_OUTPUT = CONFIG["paths"]["output_dir"]
+DEFAULT_JD_INBOX = CONFIG["paths"]["inbox_dir"]
 
 
 def main():
