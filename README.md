@@ -28,30 +28,39 @@ Automatically organize your scanned documents into folders with AI-powered categ
 ## Installation
 
 ```bash
-# 1. Create and activate virtual environment
-python3 -m venv docling-env
-source docling-env/bin/activate
+# 1. Install dependencies
+pip install docling anthropic pdfplumber pytesseract pillow python-dotenv streamlit pyyaml
 
-# 2. Install dependencies
-pip install docling anthropic pdfplumber pytesseract pillow python-dotenv streamlit
-
-# 3. (Optional) For better OCR on scanned docs
+# 2. (Optional) For better OCR on scanned docs
 # macOS: brew install tesseract
 # Ubuntu: sudo apt install tesseract-ocr
 # Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki
 
+# 3. Configure paths in config.yaml (or copy to config.local.yaml for local overrides)
 # 4. Set your API key (optional - Claude Code CLI can use Max subscription)
 export ANTHROPIC_API_KEY="your-key-here"
 ```
+
+## Configuration
+
+Edit `config.yaml` to customize paths and settings:
+
+```yaml
+paths:
+  output_dir: ~/Documents/jd_documents
+  inbox_dir: ~/Documents/jd_documents/00-09 System/01 Inbox
+
+mode: claude-code  # claude-code, api, or keywords
+watch_interval: 5
+```
+
+For local overrides, copy to `config.local.yaml` (gitignored).
 
 ## Usage
 
 ### Recommended Workflow (UI-Based)
 
 ```bash
-# Activate environment
-source docling-env/bin/activate
-
 # Step 1: Preprocess - extract text + AI analysis
 python document_organizer.py --preprocess --once
 

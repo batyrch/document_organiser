@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project automatically organizes scanned documents using AI-powered categorization with the Johnny.Decimal system.
+Automatically organize scanned documents using AI-powered categorization with the Johnny.Decimal system. Supports PDFs, images (with OCR), and Office documents.
 
 ## Project Structure
 
@@ -12,8 +12,10 @@ document_organiser/
 ├── ui.py                   # Streamlit web UI for manual classification
 ├── preview_renames.py      # Migration preview script for renaming existing folders
 ├── migrate_to_jd.py        # Migration script for existing files
+├── config.yaml             # Project settings (paths, mode, logging)
+├── config.local.yaml       # Local overrides (gitignored, optional)
 ├── README.md               # User documentation
-└── .env                    # Environment variables (ANTHROPIC_API_KEY, INBOX_DIR, OUTPUT_DIR)
+└── .env                    # API keys only (ANTHROPIC_API_KEY)
 ```
 
 ## Johnny.Decimal System
@@ -115,21 +117,29 @@ Examples:
 - Maps old categories (financial/receipts) to JD (10-19 Finance/14 Receipts)
 - Generates JDex index at `00-09 System/00 Index/00.00 Index.md`
 
-## Default Paths
+## Configuration
 
-Paths are portable and use environment variables or `~/Documents/jd_documents` as default:
+Settings are loaded from `config.yaml` (with optional `config.local.yaml` for local overrides):
 
-- **JD Output**: `$OUTPUT_DIR` or `~/Documents/jd_documents`
-- **JD Inbox**: `$INBOX_DIR` or `~/Documents/jd_documents/00-09 System/01 Inbox`
+```yaml
+# config.yaml
+paths:
+  output_dir: ~/Documents/jd_documents
+  inbox_dir: ~/Documents/jd_documents/00-09 System/01 Inbox
 
-See `.env.example` for all configuration options.
+mode: claude-code  # claude-code, api, or keywords
+watch_interval: 5
+
+logging:
+  level: INFO
+  file: ""  # Optional log file path
+```
+
+**Priority order:** `config.local.yaml` > `config.yaml` > environment variables > defaults
 
 ## Running the Organizer
 
 ```bash
-# Activate virtual environment
-source docling-env/bin/activate
-
 # Watch mode (continuous)
 python document_organizer.py
 
@@ -145,9 +155,6 @@ python document_organizer.py --mode keywords
 The recommended workflow separates AI analysis from manual classification:
 
 ```bash
-# Activate virtual environment
-source docling-env/bin/activate
-
 # Step 1: Preprocess - extract text + AI analysis (saves .analysis.json files)
 python document_organizer.py --preprocess
 
@@ -181,10 +188,6 @@ streamlit run ui.py
 ## Web UI for Manual Classification
 
 ```bash
-# Activate virtual environment
-source docling-env/bin/activate
-
-# Launch Streamlit UI
 streamlit run ui.py
 ```
 

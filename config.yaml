@@ -1,0 +1,27 @@
+# Document Organizer Configuration
+# Copy to config.local.yaml and customize for your environment
+
+# Paths (relative to home directory or absolute)
+paths:
+  # Where organized documents are stored (JD root)
+  output_dir: ~/Documents/scanned_documents/jd_organized_v2
+
+  # Where new documents are dropped for processing
+  inbox_dir: ~/Documents/scanned_documents/jd_organized_v2/00-09 System/01 Inbox
+
+# AI categorization mode
+# Options: claude-code (Max subscription), api (requires ANTHROPIC_API_KEY), keywords (no AI)
+mode: claude-code
+
+# Watch interval in seconds (for continuous monitoring)
+watch_interval: 5
+
+# Logging
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR
+  file: ""     # Leave empty for console only, or set path like ~/logs/document_organizer.log
+
+# Virtual environment (for documentation purposes)
+venv:
+  name: docling-env
+  python: python3
