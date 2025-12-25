@@ -246,12 +246,16 @@ streamlit run ui.py
 - **Browse Mode**: Scan any folder (with optional recursion) to view/manage existing documents
 - Toggle between modes with radio button in sidebar
 - Custom folder path input with recursive toggle
+- **Breadcrumb navigation**: Shows current path hierarchy in browse mode
 
 **File Management:**
+- **Grid/List view toggle**: Switch between thumbnail grid (⊞) and list view (☰)
 - File list with metadata status (✅ has metadata, ⏳ pending)
+- **Colored tag chips**: Tags displayed with category-based colors (TAG_COLORS mapping)
 - Checkbox selection for bulk operations (Select All uses versioned keys for proper state sync)
 - Search/filter by metadata (issuer, document_type, tags, category, text)
 - Navigation (Prev/Next buttons, file counter)
+- **Thumbnails**: PDF and image thumbnails in grid view (requires pymupdf)
 
 **Document View:**
 - PDF preview (embedded viewer)
@@ -262,6 +266,7 @@ streamlit run ui.py
 **Classification:**
 - AI suggestion pre-filled in form
 - Manual override for area, category, issuer, document type, date, tags
+- **Destination preview**: Shows where file will be organized before filing
 - Re-analyze button to re-run AI on current file
 
 **Bulk Actions:**
@@ -270,10 +275,25 @@ streamlit run ui.py
 - Reanalyze Selected - re-run AI on selected files
 - Delete Selected - remove selected files
 
+**File Upload:**
+- **Drag & drop upload**: Upload files directly in the UI
+- Available in sidebar expander (always) and main area (when inbox is empty)
+- Supports PDF, PNG, JPG, TIFF, BMP, DOCX, TXT
+- Handles duplicate filenames with counter suffix
+
 **Loading Animation:**
 - Custom hand animation (CSS-based, inspired by codepen.io/r4ms3s/pen/XJqeKB)
 - `hand_spinner()` context manager replaces `st.spinner()` throughout the app
 - Shows animated tapping fingers during all processing operations
+
+**UI Components (ui.py):**
+- `TAG_COLORS` - Color mapping for JD areas and common tags
+- `TAG_CHIPS_CSS` - Styles for chips, grid cards, breadcrumbs, destination preview
+- `render_tag_chips()` - Renders colored tag chips HTML
+- `generate_thumbnail()` - Creates cached thumbnails for images/PDFs
+- `render_breadcrumb()` - Renders folder navigation breadcrumb
+- `render_destination_preview()` - Shows filing destination before processing
+- `get_file_icon()` - Returns emoji icon for file types
 
 ## Running Migration
 

@@ -127,16 +127,20 @@ Launch the UI with `streamlit run ui.py`
   - Toggle between modes in sidebar
   - Custom folder path with recursive option
   - **Subfolder dropdown**: Navigate into subdirectories quickly
+  - **Breadcrumb navigation**: Shows current path hierarchy
 
 ### Document Management
+- **Grid/List view toggle**: Switch between thumbnail grid (⊞) and list view (☰)
 - File list with metadata status (✅ has metadata, ⏳ pending)
-- PDF and image preview
+- **Colored tag chips**: Tags displayed with category-based colors
+- PDF and image preview with thumbnails
 - Extracted text display
 - AI analysis panel with all metadata fields
 
 ### Classification
 - AI suggestion pre-filled in form
 - Manual override for area, category, issuer, document type, date, tags
+- **Destination preview**: Shows where file will be organized before filing
 - Re-analyze button for individual files
 
 ### Bulk Operations
@@ -145,11 +149,17 @@ Launch the UI with `streamlit run ui.py`
 - Reanalyze Selected - re-run AI on selected files
 - Delete Selected - remove selected files
 
+### File Upload
+- **Drag & drop upload**: Upload files directly in the UI
+- Available in sidebar (always) and main area (when inbox is empty)
+- Supports PDF, PNG, JPG, TIFF, BMP, DOCX, TXT
+
 ### Settings & Maintenance
 - **Rebuild Hash Index**: Scan all files and rebuild duplicate detection index (Settings → About → Advanced)
 
 ### UI Polish
 - **Hand loading animation**: Animated hand indicator during processing operations
+- **PDF thumbnails**: Visual previews in grid view (requires pymupdf)
 
 ## Johnny.Decimal Categories
 
