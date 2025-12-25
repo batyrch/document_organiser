@@ -10,16 +10,26 @@ Automatically organize scanned documents using AI-powered categorization with th
 document_organiser/
 ├── document_organizer.py   # Main organizer script with JD integration
 ├── ui.py                   # Streamlit web UI for manual classification
+├── ai_providers.py         # AI provider integrations (Claude, OpenAI, Ollama, etc.)
 ├── settings.py             # Persistent settings management
+├── device_auth.py          # Device authentication handling
 ├── preview_renames.py      # Migration preview script for renaming existing folders
 ├── migrate_to_jd.py        # Migration script for existing files
 ├── config.yaml             # Project settings (paths, mode, logging)
 ├── config.local.yaml       # Local overrides (gitignored, optional)
 ├── requirements.txt        # Python dependencies
 ├── README.md               # User documentation
+├── CLAUDE.md               # This file - developer guide
 ├── .env                    # API keys only (ANTHROPIC_API_KEY)
+├── install.sh              # macOS/Linux installer script
+├── build_macos_native.py   # Build native .app bundle (simpler approach)
+├── build_macos.py          # Build PyInstaller .app bundle (deprecated)
+├── desktop/                # Desktop app files
+│   ├── launch.sh           # Shell launcher for native app
+│   └── launcher.py         # Python launcher for PyInstaller (deprecated)
 ├── pwa/                    # Landing page source files
 │   ├── index.html          # Main landing page
+│   ├── app.html            # Local app wrapper
 │   └── privacy.html        # Privacy policy
 └── docs/                   # GitHub Pages deployment folder
     ├── index.html          # Copy of pwa/index.html
@@ -406,55 +416,75 @@ The site is deployed from the `docs/` folder on the `main` branch.
 
 ## Desktop App (macOS)
 
-### Building the App
+### Recommended: Native Installer
+
+The recommended approach uses system Python with a virtual environment, avoiding PyInstaller bundling issues:
 
 ```bash
-# Install PyInstaller
-pip install pyinstaller
+# Run the installer
+./install.sh
 
-# Build the app
-python build_macos.py
-
-# Output: dist/Document Organizer.app (~800MB)
+# Launch the app
+docorg
 ```
 
 ### How It Works
 
-1. `build_macos.py` uses PyInstaller to bundle:
-   - Python interpreter
-   - All dependencies (Streamlit, Docling, etc.)
-   - Application files (ui.py, document_organizer.py, etc.)
+1. `install.sh` installs to `~/.local/share/document-organizer/`:
+   - Copies application files
+   - Creates a Python virtual environment
+   - Installs all dependencies
+   - Creates `docorg` launcher command in `~/.local/bin/`
 
-2. `desktop/launcher.py` is the entry point:
+2. `docorg` command:
    - Finds a free port
-   - Starts Streamlit server
-   - Opens browser to `https://batyrch.github.io/document_organiser/app.html`
-   - The hosted page connects to the local Streamlit server
+   - Starts Streamlit server from the venv
+   - Opens browser automatically
+   - Runs in Terminal (inherits user file permissions)
+
+3. Optional macOS app (created during install):
+   - Placed in `/Applications/Document Organizer.app`
+   - Opens Terminal and runs `docorg`
+   - Preserves file permissions (avoids sandboxing issues)
 
 ### Files
 
 ```
+install.sh                    # One-line installer script
 desktop/
-└── launcher.py       # App launcher (PyInstaller entry point)
+├── launcher.py               # Legacy PyInstaller launcher (deprecated)
+└── launch.sh                 # Shell script launcher for native app
 
-build_macos.py        # Build script
+~/.local/share/document-organizer/   # Installed app location
+├── ui.py, document_organizer.py, etc.
+├── requirements.txt
+└── venv/                     # Python virtual environment
 
-dist/
-├── Document Organizer.app    # Built macOS app
-└── Document Organizer/       # Intermediate build files
+~/.local/bin/docorg           # Launcher command
 ```
 
-### Distribution
+### Why Not PyInstaller?
 
-1. Build the app: `python build_macos.py`
-2. Create GitHub Release with `Document Organizer.app`
-3. Users download from: `https://github.com/batyrch/document_organiser/releases/latest/download/Document-Organizer.app`
+PyInstaller bundling has issues with Streamlit:
+- `sys.executable` points to the bundled app, causing infinite process spawning
+- Streamlit's internal multiprocessing breaks
+- macOS sandbox blocks access to user folders (Documents, Downloads)
 
-### First Launch (Gatekeeper)
+The native installer approach:
+- Uses system Python (no bundling issues)
+- Runs from Terminal (full file permissions)
+- Smaller footprint (~1MB vs 800MB+)
+- Easy updates (just re-run `install.sh`)
 
-Since the app is not code-signed, users must:
-1. Right-click → Open → "Open Anyway"
-2. Or: System Settings → Privacy & Security → "Allow Anyway"
+### Legacy: PyInstaller Build (Deprecated)
+
+```bash
+# Build with PyInstaller (may have issues)
+python build_macos.py
+
+# Or native app bundle (simpler, but still has sandbox issues)
+python build_macos_native.py
+```
 
 ## Dependencies
 
