@@ -35,6 +35,8 @@ from document_organizer import (
     load_analysis,
     save_analysis,
     preprocess_file,
+    build_hash_index,
+    load_hash_index,
     DEFAULT_JD_INBOX,
     DEFAULT_JD_OUTPUT,
 )
@@ -1314,17 +1316,38 @@ def render_settings_page():
         # Show config location
         st.caption(f"Settings stored in: `{get_config_dir()}`")
 
-        # Reset settings
+        # Advanced settings
         with st.expander("Advanced"):
-            if st.button("Reset All Settings", type="secondary"):
-                if st.session_state.get("confirm_reset"):
-                    settings.reset()
-                    st.success("Settings reset to defaults")
-                    st.session_state.confirm_reset = False
-                    st.rerun()
-                else:
-                    st.session_state.confirm_reset = True
-                    st.warning("Click again to confirm reset")
+            st.markdown("**Maintenance**")
+
+            # Show hash index status
+            output_dir = settings.get("output_dir", "")
+            if output_dir:
+                hash_index = load_hash_index(output_dir)
+                st.caption(f"Hash index contains {len(hash_index)} files")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                if st.button("🔄 Rebuild Hash Index", type="secondary", help="Scan all files and rebuild duplicate detection index"):
+                    if output_dir:
+                        with st.spinner("Scanning files and building hash index..."):
+                            index = build_hash_index(output_dir, force_rebuild=True)
+                        st.success(f"Hash index rebuilt: {len(index)} files indexed")
+                        st.rerun()
+                    else:
+                        st.error("Please configure output directory first")
+
+            with col2:
+                if st.button("Reset All Settings", type="secondary"):
+                    if st.session_state.get("confirm_reset"):
+                        settings.reset()
+                        st.success("Settings reset to defaults")
+                        st.session_state.confirm_reset = False
+                        st.rerun()
+                    else:
+                        st.session_state.confirm_reset = True
+                        st.warning("Click again to confirm reset")
 
     # Mark setup as complete if user has configured directories
     if not settings.setup_complete and settings.get("output_dir"):
