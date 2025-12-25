@@ -798,12 +798,62 @@ def delete_analysis_file(file_path: Path):
         analysis_path.unlink()
 
 
-def reanalyze_file(file_path: Path):
-    """Delete existing analysis and reanalyze."""
+def reanalyze_file(file_path: Path, skip_if_has_text: bool = True) -> bool:
+    """Reanalyze a file to extract text.
+
+    For organized files (with .meta.json), updates the metadata file
+    with the newly extracted text.
+
+    Args:
+        file_path: Path to the file to reanalyze
+        skip_if_has_text: If True, skip files that already have extracted_text
+
+    Returns:
+        True if file was processed, False if skipped
+    """
+    meta_path = file_path.with_suffix(file_path.suffix + ".meta.json")
+
+    # Check if we should skip this file (already has extracted text)
+    if skip_if_has_text and meta_path.exists():
+        try:
+            with open(meta_path, 'r') as f:
+                metadata = json.load(f)
+            if metadata.get("extracted_text", "").strip():
+                return False  # Skip - already has extracted text
+        except (json.JSONDecodeError, IOError):
+            pass  # Continue with reanalysis if we can't read the file
+
     # Clean up orphaned analysis files in the same folder first
     cleanup_orphaned_analysis_files(file_path.parent)
     delete_analysis_file(file_path)
     preprocess_file(str(file_path))
+
+    # If this is an organized file (has .meta.json), update it with extracted text
+    analysis_path = get_analysis_path(str(file_path))
+
+    if meta_path.exists() and analysis_path.exists():
+        try:
+            # Load the new analysis with extracted text
+            with open(analysis_path, 'r') as f:
+                analysis = json.load(f)
+
+            # Load existing metadata
+            with open(meta_path, 'r') as f:
+                metadata = json.load(f)
+
+            # Only update extracted_text - preserve all other manually curated fields
+            metadata["extracted_text"] = analysis.get("extracted_text", "")
+
+            # Save updated metadata
+            with open(meta_path, 'w') as f:
+                json.dump(metadata, f, indent=2, ensure_ascii=False)
+
+            # Clean up the analysis file since metadata is now updated
+            analysis_path.unlink()
+        except (json.JSONDecodeError, IOError):
+            pass  # Keep the analysis file if metadata update fails
+
+    return True
 
 
 def cleanup_orphaned_analysis_files(folder: Path) -> int:
@@ -1273,6 +1323,14 @@ def main():
                             analysis = load_analysis(str(file_path))
                             extracted_text = analysis.get("extracted_text", "") if analysis else ""
 
+                            # Extract text if not already done
+                            if not extracted_text:
+                                result = extract_text_with_docling(str(file_path))
+                                if not result["success"] or not result["text"].strip():
+                                    result = extract_text_fallback(str(file_path))
+                                if result["success"]:
+                                    extracted_text = result["text"]
+
                             final_analysis = {
                                 "jd_area": bulk_area,
                                 "jd_category": bulk_category,
@@ -1313,10 +1371,11 @@ def main():
 
                     if total > 0:
                         progress_container = st.empty()
+                        processed_count = 0
+                        skipped_count = 0
 
                         for idx, file_str in enumerate(files_to_reanalyze):
                             file_path = Path(file_str)
-                            processed = idx
                             remaining = total - idx
 
                             with progress_container.container():
@@ -1332,18 +1391,24 @@ def main():
                                     </div>
                                     <div class="hand-loading-text">
                                         <strong>Processing:</strong> {file_path.name[:40]}{'...' if len(file_path.name) > 40 else ''}<br>
-                                        <strong>Completed:</strong> {processed} / {total}<br>
+                                        <strong>Completed:</strong> {idx} / {total}<br>
                                         <strong>Remaining:</strong> {remaining}
                                     </div>
                                 </div>
                                 """
                                 st.markdown(progress_html, unsafe_allow_html=True)
 
-                            reanalyze_file(file_path)
+                            if reanalyze_file(file_path):
+                                processed_count += 1
+                            else:
+                                skipped_count += 1
 
                         progress_container.empty()
 
-                    st.success(f"Reanalyzed {total} files")
+                    if skipped_count > 0:
+                        st.success(f"Processed {processed_count} files, skipped {skipped_count} (already had text)")
+                    else:
+                        st.success(f"Processed {processed_count} files")
                     st.rerun()
 
             with col_act3:
@@ -1467,10 +1532,10 @@ def main():
                     st.write("**Tags:**")
                     st.markdown(render_tag_chips(analysis.get('tags', [])), unsafe_allow_html=True)
 
-                # Re-analyze button
+                # Re-analyze button - force reanalysis since user explicitly requested
                 if st.button("Re-analyze with AI"):
                     with hand_spinner("Re-analyzing..."):
-                        reanalyze_file(file_path)
+                        reanalyze_file(file_path, skip_if_has_text=False)
                     st.rerun()
         else:
             st.warning("This file hasn't been analyzed yet.")
@@ -1564,11 +1629,20 @@ def main():
 
                 with hand_spinner("Filing document..."):
                     try:
+                        # Extract text if not already done
+                        text_to_save = extracted_text
+                        if not text_to_save:
+                            result = extract_text_with_docling(str(file_path))
+                            if not result["success"] or not result["text"].strip():
+                                result = extract_text_fallback(str(file_path))
+                            if result["success"]:
+                                text_to_save = result["text"]
+
                         dest_path = organize_file(
                             str(file_path),
                             output_dir,
                             final_analysis,
-                            extracted_text
+                            text_to_save
                         )
 
                         # Delete the analysis file (document has been moved)

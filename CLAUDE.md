@@ -143,7 +143,10 @@ Examples:
 - `get_inbox_files()` - List files in inbox with analysis status
 - `get_folder_files()` - List files in any folder with metadata (recursive option)
 - `filter_files()` - Search/filter by metadata fields
-- `reanalyze_file()` - Delete and re-run analysis
+- `reanalyze_file(file_path, skip_if_has_text=True)` - Re-run text extraction and analysis
+  - Skips files that already have `extracted_text` in `.meta.json` (for bulk operations)
+  - Updates `.meta.json` with newly extracted text (preserves other fields)
+  - Use `skip_if_has_text=False` to force reanalysis (used by single-file "Re-analyze with AI" button)
 - `hand_spinner()` - Context manager for animated hand loading indicator
 - **Browse Mode**: Switch between Inbox and custom folder scanning
   - Subfolder dropdown for quick navigation into subdirectories
@@ -282,9 +285,15 @@ streamlit run ui.py
 
 **Bulk Actions:**
 - Select All / Clear Selection
-- Move Selected - move multiple files to chosen category
-- Reanalyze Selected - re-run AI on selected files
+- Move Selected - move multiple files to chosen category (auto-extracts text if missing)
+- Reanalyze Selected - re-run text extraction on files missing `extracted_text` (skips files that already have text)
 - Delete Selected - remove selected files
+
+**Text Extraction Behavior:**
+- **Process & File**: Automatically extracts text if not already done (prevents empty `extracted_text` in `.meta.json`)
+- **Move Selected**: Same - extracts text on-the-fly if missing
+- **Reanalyze Selected**: Only processes files without `extracted_text`, skips files that already have it
+- **Re-analyze with AI** (single file): Forces reanalysis regardless of existing text
 
 **File Upload:**
 - **Drag & drop upload**: Upload files directly in the UI

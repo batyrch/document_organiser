@@ -152,9 +152,11 @@ Launch the UI with `streamlit run ui.py`
 
 ### Bulk Operations
 - Select multiple files with checkboxes (Select All / Clear Selection)
-- Move Selected - batch move to chosen category
-- Reanalyze Selected - re-run AI on selected files
+- Move Selected - batch move to chosen category (auto-extracts text if missing)
+- Reanalyze Selected - backfill missing extracted text (skips files that already have text)
 - Delete Selected - remove selected files
+
+> **Note:** Reanalyze is safe to run on all files - it only processes files missing `extracted_text` in their metadata, preserving all other fields.
 
 ### File Upload
 - **Drag & drop upload**: Upload files directly in the UI
@@ -248,6 +250,7 @@ python document_organizer.py --rebuild-index
 4. **Browse Mode**: Use to view and reanalyze existing organized documents
 5. **Batch import**: Drop a folder (e.g., "Salary Slips 2024") into inbox - folder name helps AI categorize
 6. **Duplicate detection**: Run `--rebuild-index` after manually adding files to ensure duplicates are caught
+7. **Backfill extracted text**: If older files are missing extracted text, use Browse Mode → Select All → Reanalyze Selected (only processes files without text)
 
 ## Website & Privacy
 
