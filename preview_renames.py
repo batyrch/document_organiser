@@ -85,13 +85,14 @@ def propose_new_name_from_ai(metadata: dict, folder_name: str) -> Optional[str]:
     summary = metadata.get("summary", "")
     extracted_text = metadata.get("extracted_text", "")
     existing_tags = metadata.get("tags", [])
-    correspondent = metadata.get("correspondent", "")
+    # Get issuer (with fallback to old 'correspondent' field for backwards compatibility)
+    issuer = metadata.get("issuer") or metadata.get("correspondent", "")
 
     # Build context from metadata
     context = f"""Summary: {summary}
 Tags: {', '.join(existing_tags) if existing_tags else 'none'}
 Current folder name: {folder_name}
-Correspondent (old field): {correspondent}"""
+Issuer: {issuer}"""
 
     # Add a snippet of extracted text if available
     if extracted_text:

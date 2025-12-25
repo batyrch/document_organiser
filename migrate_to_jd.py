@@ -116,11 +116,16 @@ def get_jd_mapping(category: str, subcategory: str) -> tuple:
     return ("50-59 Personal", "54 Memberships")
 
 
-def extract_correspondent(metadata: dict) -> str:
-    """Extract correspondent/source from metadata."""
+def extract_issuer(metadata: dict) -> str:
+    """Extract issuer from metadata (with fallback to correspondent for old data)."""
+    # Prefer issuer field (new), fall back to correspondent (old)
+    issuer = metadata.get("issuer") or metadata.get("correspondent")
+    if issuer:
+        return issuer.replace(" ", "_").replace("/", "_")[:30]
+
+    # Fallback: use first entity
     entities = metadata.get("entities", [])
     if entities:
-        # Use first entity as correspondent
         return entities[0].replace(" ", "_").replace("/", "_")[:30]
 
     # Fallback: try to extract from original filename
@@ -219,7 +224,7 @@ def migrate_files(source_dir: str, dest_dir: str, dry_run: bool = False) -> dict
     migrated = 0
     errors = 0
 
-    # Group files by JD category and correspondent+year
+    # Group files by JD category and issuer+year
     grouped = defaultdict(list)
 
     for file_info in files:
@@ -228,24 +233,24 @@ def migrate_files(source_dir: str, dest_dir: str, dry_run: bool = False) -> dict
         old_subcategory = metadata.get("subcategory", "miscellaneous")
 
         jd_area, jd_category = get_jd_mapping(old_category, old_subcategory)
-        correspondent = extract_correspondent(metadata)
+        issuer = extract_issuer(metadata)
         year = extract_year(metadata)
 
-        group_key = (jd_area, jd_category, correspondent, year)
+        group_key = (jd_area, jd_category, issuer, year)
         grouped[group_key].append(file_info)
 
     # Process each group
-    for (jd_area, jd_category, correspondent, year), group_files in grouped.items():
+    for (jd_area, jd_category, issuer, year), group_files in grouped.items():
         # Get category number (e.g., "14" from "14 Receipts")
         cat_num = jd_category.split()[0]
 
-        # Assign ID for this correspondent+year
-        id_key = f"{correspondent}_{year}"
+        # Assign ID for this issuer+year
+        id_key = f"{issuer}_{year}"
         id_tracker[jd_category][id_key] += 1
         id_num = len(id_tracker[jd_category])
 
         jd_id = f"{cat_num}.{id_num:02d}"
-        id_folder_name = f"{jd_id} {correspondent} {year}"
+        id_folder_name = f"{jd_id} {issuer} {year}"
 
         # Create ID folder path
         id_folder_path = Path(dest_dir) / jd_area / jd_category / id_folder_name
@@ -264,13 +269,14 @@ def migrate_files(source_dir: str, dest_dir: str, dry_run: bool = False) -> dict
             new_doc_path = id_folder_path / doc_path.name
             new_meta_path = id_folder_path / meta_path.name
 
-            # Update metadata with JD fields
+            # Update metadata with JD fields (use issuer, keep correspondent for backwards compatibility)
             updated_metadata = {
                 **metadata,
                 "id": jd_id,
                 "jd_area": jd_area,
                 "jd_category": jd_category,
-                "correspondent": correspondent,
+                "issuer": issuer,
+                "correspondent": issuer,  # Keep for backwards compatibility
                 "current_filename": doc_path.name,
             }
 
@@ -292,7 +298,7 @@ def migrate_files(source_dir: str, dest_dir: str, dry_run: bool = False) -> dict
                     "id": jd_id,
                     "jd_area": jd_area,
                     "jd_category": jd_category,
-                    "correspondent": correspondent,
+                    "issuer": issuer,
                     "year": year,
                     "filename": doc_path.name,
                     "summary": metadata.get("summary", ""),
@@ -351,7 +357,7 @@ def generate_jdex_index(dest_dir: str, index_entries: list, dry_run: bool = Fals
             for jd_id in sorted(by_id.keys()):
                 id_entries = by_id[jd_id]
                 first = id_entries[0]
-                lines.append(f"#### {jd_id} {first['correspondent']} {first['year']}")
+                lines.append(f"#### {jd_id} {first['issuer']} {first['year']}")
                 lines.append(f"Location: file system")
                 lines.append("")
 

@@ -745,14 +745,31 @@ def extract_year(analysis: dict) -> str:
     return str(datetime.now().year)
 
 
+def sanitize_path_component(component: str) -> str:
+    """Sanitize a path component to prevent path traversal attacks.
+
+    Removes or replaces dangerous characters that could be used for directory traversal.
+    """
+    if not component:
+        return "unknown"
+    # Remove path separators and parent directory references
+    sanitized = component.replace("/", "_").replace("\\", "_")
+    sanitized = sanitized.replace("..", "_")
+    # Remove null bytes
+    sanitized = sanitized.replace("\x00", "")
+    # Strip leading/trailing dots and spaces (problematic on some filesystems)
+    sanitized = sanitized.strip(". ")
+    return sanitized if sanitized else "unknown"
+
+
 def organize_file(file_path: str, output_dir: str, analysis: dict, extracted_text: str = "") -> str:
     """Move file to Johnny.Decimal folder structure (flat).
 
     Structure: output/Area/Category/{JD_ID} {Issuer} {DocType} {Year}.ext
     Example: output/10-19 Finance/14 Receipts/14.01 Amazon Laptop Receipt 2024.pdf
     """
-    jd_area = analysis.get("jd_area", "50-59 Personal")
-    jd_category = analysis.get("jd_category", "54 Memberships")
+    jd_area = sanitize_path_component(analysis.get("jd_area", "50-59 Personal"))
+    jd_category = sanitize_path_component(analysis.get("jd_category", "54 Memberships"))
 
     # Generate folder descriptor from issuer + document type
     original_name = Path(file_path).name
@@ -768,7 +785,19 @@ def organize_file(file_path: str, output_dir: str, analysis: dict, extracted_tex
 
     # Generate new filename with JD ID: "14.01 Amazon Laptop Receipt 2024.pdf"
     new_name = generate_filename(original_name, analysis, jd_id, year)
+    # Sanitize filename to prevent path traversal
+    new_name = sanitize_path_component(new_name)
+    # Restore file extension if it was stripped
+    original_ext = Path(original_name).suffix
+    if original_ext and not new_name.endswith(original_ext):
+        new_name = new_name + original_ext
     dest_path = dest_dir / new_name
+
+    # Security check: ensure resolved path is within output directory
+    output_dir_resolved = Path(output_dir).resolve()
+    dest_path_resolved = dest_path.resolve()
+    if not str(dest_path_resolved).startswith(str(output_dir_resolved) + os.sep):
+        raise ValueError(f"Security error: destination path '{dest_path}' escapes output directory")
 
     # Handle duplicates - add suffix
     counter = 1
