@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Document Organizer</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📁</text></svg>">
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --gray-50: #F9FAFB;
+            --gray-100: #F3F4F6;
+            --gray-200: #E5E7EB;
+            --gray-600: #4B5563;
+            --gray-800: #1F2937;
+            --gray-900: #111827;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary: #818CF8;
+                --gray-50: #111827;
+                --gray-100: #1F2937;
+                --gray-200: #374151;
+                --gray-600: #D1D5DB;
+                --gray-800: #F3F4F6;
+                --gray-900: #F9FAFB;
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-800);
+            line-height: 1.7;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        nav {
+            border-bottom: 1px solid var(--gray-200);
+            padding: 1rem 0;
+            margin-bottom: 2rem;
+        }
+
+        nav a {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        nav a:hover {
+            text-decoration: underline;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .last-updated {
+            color: var(--gray-600);
+            margin-bottom: 2rem;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin: 2rem 0 1rem;
+        }
+
+        h3 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin: 1.5rem 0 0.75rem;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: var(--gray-800);
+        }
+
+        ul {
+            margin: 1rem 0 1rem 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        .highlight-box {
+            background: var(--gray-100);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .highlight-box h3 {
+            margin-top: 0;
+        }
+
+        .green {
+            color: #10B981;
+        }
+
+        .orange {
+            color: #F59E0B;
+        }
+
+        code {
+            background: var(--gray-200);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.875rem;
+        }
+
+        footer {
+            margin-top: 4rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--gray-200);
+            color: var(--gray-600);
+            font-size: 0.875rem;
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="index.html">← Back to Document Organizer</a>
+        </nav>
+
+        <h1>Privacy Policy</h1>
+        <p class="last-updated">Last updated: December 2024</p>
+
+        <div class="highlight-box">
+            <h3>TL;DR - Your Privacy is Protected</h3>
+            <p style="margin-bottom: 0;">
+                <span class="green">✓</span> All document processing happens <strong>locally on your computer</strong><br>
+                <span class="green">✓</span> Your files <strong>never leave your machine</strong><br>
+                <span class="green">✓</span> Only extracted text is sent to AI providers (if you choose cloud AI)<br>
+                <span class="green">✓</span> Use Ollama for <strong>100% offline</strong> operation<br>
+                <span class="green">✓</span> <strong>No analytics, no tracking, no telemetry</strong> on this website
+            </p>
+        </div>
+
+        <h2>What Data Stays Local</h2>
+        <p>Document Organizer is designed with privacy as a core principle. The following data never leaves your computer:</p>
+        <ul>
+            <li><strong>Your documents</strong> - PDFs, images, Word files, etc. are processed entirely locally</li>
+            <li><strong>Original files</strong> - Only moved/renamed on your local filesystem</li>
+            <li><strong>Metadata files</strong> - The <code>.meta.json</code> sidecar files are stored locally</li>
+            <li><strong>Settings</strong> - Stored in your user config directory</li>
+            <li><strong>Hash index</strong> - Used for duplicate detection, stored locally</li>
+        </ul>
+
+        <h2>What May Be Sent Externally</h2>
+        <p>Depending on your AI provider choice, some data may be sent to external services:</p>
+
+        <h3>If You Use Cloud AI Providers (Claude, GPT, Bedrock)</h3>
+        <div class="highlight-box">
+            <p><span class="orange">⚠</span> <strong>Extracted text only</strong> is sent to the AI provider for categorization.</p>
+            <p style="margin-bottom: 0;">
+                This means if you have a scanned bank statement, the text content (account numbers, balances, transaction details)
+                will be sent to Anthropic, OpenAI, or AWS for analysis. The actual PDF/image file is NOT sent - only the extracted text.
+            </p>
+        </div>
+        <p>
+            Please review the privacy policies of your chosen AI provider:
+        </p>
+        <ul>
+            <li><a href="https://www.anthropic.com/privacy" target="_blank">Anthropic Privacy Policy</a></li>
+            <li><a href="https://openai.com/privacy" target="_blank">OpenAI Privacy Policy</a></li>
+            <li><a href="https://aws.amazon.com/privacy/" target="_blank">AWS Privacy Policy</a></li>
+        </ul>
+
+        <h3>If You Use Ollama (Local AI)</h3>
+        <p>
+            <span class="green">✓</span> <strong>Nothing is sent externally.</strong> Ollama runs entirely on your machine.
+            All AI processing happens locally. This is the recommended option for maximum privacy.
+        </p>
+
+        <h3>If You Use Keyword Mode</h3>
+        <p>
+            <span class="green">✓</span> <strong>Nothing is sent externally.</strong> Simple pattern matching runs locally
+            without any AI calls.
+        </p>
+
+        <h2>API Keys</h2>
+        <p>
+            If you provide API keys for cloud AI providers, these are stored locally in your user settings file:
+        </p>
+        <ul>
+            <li>macOS: <code>~/Library/Application Support/DocumentOrganizer/settings.json</code></li>
+            <li>Linux: <code>~/.config/DocumentOrganizer/settings.json</code></li>
+            <li>Windows: <code>%APPDATA%/DocumentOrganizer/settings.json</code></li>
+        </ul>
+        <p>
+            <span class="orange">⚠</span> API keys are stored in plain text. Ensure your system has appropriate access controls.
+        </p>
+
+        <h2>This Website</h2>
+        <p>This landing page (the GitHub Pages site you're viewing) does not:</p>
+        <ul>
+            <li>Use cookies</li>
+            <li>Track visitors with analytics</li>
+            <li>Collect any personal information</li>
+            <li>Use any third-party scripts</li>
+        </ul>
+        <p>
+            The only external request made is checking if your local Streamlit server is running on <code>localhost:8501</code>,
+            which stays entirely on your machine.
+        </p>
+
+        <h2>Open Source</h2>
+        <p>
+            Document Organizer is open source. You can audit the code to verify these privacy claims:
+        </p>
+        <ul>
+            <li><a href="https://github.com/batyrch/document_organiser" target="_blank">View source code on GitHub</a></li>
+        </ul>
+
+        <h2>Questions?</h2>
+        <p>
+            If you have questions about privacy, please
+            <a href="https://github.com/batyrch/document_organiser/issues" target="_blank">open an issue on GitHub</a>.
+        </p>
+
+        <footer>
+            <p>
+                <a href="index.html">Document Organizer</a> ·
+                <a href="https://github.com/batyrch/document_organiser" target="_blank">GitHub</a> ·
+                Open Source
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
