@@ -78,6 +78,13 @@ Examples:
 - `organize_file()` - Creates flat JD structure (Area/Category/files) and moves files
 - `get_or_create_jd_id()` - Manages ID assignment per issuer+year combination
 
+**Duplicate detection functions:**
+- `get_file_hash()` - SHA256 hash of file contents
+- `build_hash_index()` - Scans output directory, hashes all files, saves to `.hash_index.json`
+- `load_hash_index()` / `save_hash_index()` - Persistence for hash index
+- `add_to_hash_index()` - Adds file hash after processing
+- `find_duplicate_in_index()` - Checks if incoming file already exists (by content)
+
 **Preprocessing functions:**
 - `preprocess_file()` - Extract text + AI analysis, save to `.analysis.json` (no move)
 - `preprocess_inbox()` - Preprocess all files in inbox once (recursive, with folder hints)
@@ -113,6 +120,7 @@ Examples:
 - **Navigation**: Sidebar radio to switch between Documents and Settings
 - `render_app()` - Main entry point, handles setup wizard vs normal app
 - `render_settings_page()` - Full settings UI with tabs (Directories, AI, About)
+  - **Advanced section**: Rebuild Hash Index button, Reset Settings
 - `render_setup_wizard()` - First-run configuration wizard
 - `get_inbox_files()` - List files in inbox with analysis status
 - `get_folder_files()` - List files in any folder with metadata (recursive option)
@@ -168,6 +176,9 @@ python document_organizer.py --once
 
 # Keyword-only mode (no AI)
 python document_organizer.py --mode keywords
+
+# Rebuild hash index (for duplicate detection)
+python document_organizer.py --rebuild-index
 ```
 
 ## Preprocessing Mode (Recommended Workflow)
@@ -281,6 +292,32 @@ python preview_renames.py --reanalyze --execute
 2. If yes: sends `summary` + `extracted_text` to Claude Code CLI for naming
 3. If no: extracts text from PDF/image first, then sends to Claude
 4. Claude returns `{"issuer": "...", "document_type": "..."}` for folder naming
+
+## Duplicate Detection
+
+The system uses content-based hashing (SHA256) to detect duplicate files:
+
+### How it works:
+1. **Hash index** (`.hash_index.json`) stores hash → file path mapping for all organized files
+2. **On new file**: Hash is calculated and checked against index before processing
+3. **If duplicate found**: File is skipped (and deleted from inbox), shows path to existing file
+4. **If new file**: Processed normally, hash added to index
+
+### CLI Commands:
+```bash
+# Rebuild hash index from scratch (scan all files in output)
+python document_organizer.py --rebuild-index
+
+# Index is automatically updated when files are processed
+```
+
+### UI Access:
+Settings → About → Advanced → "Rebuild Hash Index" button
+
+### Files:
+- `.hash_index.json` - Hash → path mapping (in output root)
+- Automatically updated when files are organized
+- Stale entries (deleted files) are cleaned up on rebuild
 
 ## Metadata Schema
 

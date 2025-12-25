@@ -82,6 +82,9 @@ python document_organizer.py --mode api
 
 # Keyword-only mode (no AI)
 python document_organizer.py --mode keywords
+
+# Rebuild hash index for duplicate detection
+python document_organizer.py --rebuild-index
 ```
 
 ## Web UI Features
@@ -111,6 +114,9 @@ Launch the UI with `streamlit run ui.py`
 - Move Selected - batch move to chosen category
 - Reanalyze Selected - re-run AI on selected files
 - Delete Selected - remove selected files
+
+### Settings & Maintenance
+- **Rebuild Hash Index**: Scan all files and rebuild duplicate detection index (Settings → About → Advanced)
 
 ### UI Polish
 - **Hand loading animation**: Animated hand indicator during processing operations
@@ -170,6 +176,22 @@ The `.meta.json` file contains:
 - **Office** (DOCX, PPTX, XLSX)
 - **Text** (TXT, HTML)
 
+## Duplicate Detection
+
+The system automatically detects duplicate files using content-based SHA256 hashing:
+
+- **Hash index** (`.hash_index.json`) stores mappings for all organized files
+- **On new file**: Checked against index before processing
+- **Duplicate found**: Skipped and shows path to existing file
+- **New file**: Processed and added to index
+
+```bash
+# First time or after manual changes: rebuild the index
+python document_organizer.py --rebuild-index
+
+# Or use the UI: Settings → About → Advanced → Rebuild Hash Index
+```
+
 ## Tips
 
 1. **Better OCR**: Install Tesseract for best results with scanned documents
@@ -178,3 +200,4 @@ The `.meta.json` file contains:
 4. **Metadata search**: Use `.meta.json` files to build a searchable index
 5. **Browse Mode**: Use to view and reanalyze existing organized documents
 6. **Batch import**: Drop a folder (e.g., "Salary Slips 2024") into inbox - folder name helps AI categorize
+7. **Duplicate detection**: Run `--rebuild-index` after manually adding files to ensure duplicates are caught
