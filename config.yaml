@@ -13,6 +13,10 @@ paths:
 # Options: claude-code (Max subscription), api (requires ANTHROPIC_API_KEY), keywords (no AI)
 mode: claude-code
 
+# AI model settings (for api mode)
+ai:
+  model: claude-sonnet-4-20250514  # Claude model to use for API mode
+
 # Watch interval in seconds (for continuous monitoring)
 watch_interval: 5
 

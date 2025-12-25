@@ -14,6 +14,7 @@ pymupdf>=1.24.0            # For PDF thumbnail generation in UI
 
 # AI providers (install as needed)
 anthropic>=0.40.0          # For Claude API
+keyring>=24.0.0            # For secure credential storage (optional)
 openai>=1.0.0              # For OpenAI API
 boto3>=1.34.0              # For AWS Bedrock
 requests>=2.31.0           # For Ollama

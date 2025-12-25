@@ -81,6 +81,10 @@ paths:
   inbox_dir: ~/Documents/jd_documents/00-09 System/01 Inbox
 
 mode: claude-code  # claude-code, api, or keywords
+
+ai:
+  model: claude-sonnet-4-20250514  # Claude model for API mode
+
 watch_interval: 5
 ```
 
