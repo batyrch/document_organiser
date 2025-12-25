@@ -7,6 +7,8 @@ Settings are stored in the user's config directory:
 - macOS: ~/Library/Application Support/DocumentOrganizer/settings.json
 - Linux: ~/.config/DocumentOrganizer/settings.json
 - Windows: %APPDATA%/DocumentOrganizer/settings.json
+
+API keys are stored securely in the OS keychain (not in the JSON file).
 """
 
 import os
@@ -14,6 +16,64 @@ import sys
 import json
 from pathlib import Path
 from typing import Optional
+
+# Service name for keychain storage
+KEYCHAIN_SERVICE = "DocumentOrganizer"
+
+# Keys that should be stored in keychain instead of JSON
+SECURE_KEYS = {"anthropic_api_key", "openai_api_key"}
+
+
+def _get_keyring():
+    """Get keyring module, return None if not available."""
+    try:
+        import keyring
+        return keyring
+    except ImportError:
+        return None
+
+
+def get_secure_value(key: str) -> Optional[str]:
+    """Get a secure value from OS keychain."""
+    keyring = _get_keyring()
+    if keyring is None:
+        return None
+    try:
+        value = keyring.get_password(KEYCHAIN_SERVICE, key)
+        return value if value else None
+    except Exception:
+        return None
+
+
+def set_secure_value(key: str, value: str) -> bool:
+    """Set a secure value in OS keychain. Returns True on success."""
+    keyring = _get_keyring()
+    if keyring is None:
+        return False
+    try:
+        if value:
+            keyring.set_password(KEYCHAIN_SERVICE, key, value)
+        else:
+            # Delete the key if value is empty
+            try:
+                keyring.delete_password(KEYCHAIN_SERVICE, key)
+            except keyring.errors.PasswordDeleteError:
+                pass  # Key doesn't exist, that's fine
+        return True
+    except Exception:
+        return False
+
+
+def delete_secure_value(key: str) -> bool:
+    """Delete a secure value from OS keychain. Returns True on success."""
+    keyring = _get_keyring()
+    if keyring is None:
+        return False
+    try:
+        keyring.delete_password(KEYCHAIN_SERVICE, key)
+        return True
+    except Exception:
+        return False
 
 
 def get_config_dir() -> Path:
@@ -62,11 +122,16 @@ DEFAULT_SETTINGS = {
 
 
 class Settings:
-    """Manage application settings with persistence."""
+    """Manage application settings with persistence.
+
+    Secure keys (API keys) are stored in the OS keychain.
+    Other settings are stored in a JSON file.
+    """
 
     def __init__(self):
         self._settings = DEFAULT_SETTINGS.copy()
         self._load()
+        self._migrate_keys_to_keychain()
 
     def _load(self):
         """Load settings from disk."""
@@ -80,33 +145,77 @@ class Settings:
             except (json.JSONDecodeError, IOError) as e:
                 print(f"Warning: Could not load settings: {e}")
 
+    def _migrate_keys_to_keychain(self):
+        """Migrate any API keys from JSON to keychain (one-time migration)."""
+        migrated = False
+        for key in SECURE_KEYS:
+            json_value = self._settings.get(key)
+            if json_value:
+                # Move to keychain
+                if set_secure_value(key, json_value):
+                    # Clear from JSON
+                    self._settings[key] = ""
+                    migrated = True
+        if migrated:
+            self.save()
+
     def save(self):
-        """Save settings to disk."""
+        """Save settings to disk (excluding secure keys)."""
         settings_path = get_settings_path()
         try:
+            # Create a copy without secure keys
+            save_data = {k: v for k, v in self._settings.items() if k not in SECURE_KEYS}
             with open(settings_path, 'w') as f:
-                json.dump(self._settings, f, indent=2)
+                json.dump(save_data, f, indent=2)
         except IOError as e:
             print(f"Warning: Could not save settings: {e}")
 
     def get(self, key: str, default=None):
-        """Get a setting value."""
+        """Get a setting value. Secure keys are fetched from keychain."""
+        if key in SECURE_KEYS:
+            value = get_secure_value(key)
+            if value:
+                return value
+            # Fall back to in-memory (for migration period) or default
+            return self._settings.get(key, default)
         return self._settings.get(key, default)
 
     def set(self, key: str, value):
-        """Set a setting value and save."""
-        self._settings[key] = value
-        self.save()
+        """Set a setting value. Secure keys are stored in keychain."""
+        if key in SECURE_KEYS:
+            if set_secure_value(key, value):
+                # Clear any in-memory copy
+                self._settings[key] = ""
+                self.save()
+            else:
+                # Fallback to in-memory if keychain unavailable
+                self._settings[key] = value
+                self.save()
+        else:
+            self._settings[key] = value
+            self.save()
 
     def update(self, updates: dict):
         """Update multiple settings at once and save."""
-        self._settings.update(updates)
+        for key, value in updates.items():
+            if key in SECURE_KEYS:
+                set_secure_value(key, value)
+                self._settings[key] = ""
+            else:
+                self._settings[key] = value
         self.save()
 
     def reset(self):
         """Reset all settings to defaults."""
+        # Clear secure keys from keychain
+        for key in SECURE_KEYS:
+            delete_secure_value(key)
         self._settings = DEFAULT_SETTINGS.copy()
         self.save()
+
+    def has_keychain_support(self) -> bool:
+        """Check if keychain is available for secure storage."""
+        return _get_keyring() is not None
 
     @property
     def output_dir(self) -> str:

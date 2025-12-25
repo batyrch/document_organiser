@@ -370,13 +370,31 @@ class OllamaProvider(AIProvider):
     display_name = "Ollama (Local)"
     requires_api_key = False
 
+    # Allowed hosts for Ollama (security: prevent SSRF to arbitrary servers)
+    ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
     def __init__(
         self,
         model: str = "llama3.2",
         base_url: str = "http://localhost:11434"
     ):
         self.model = model
-        self.base_url = base_url
+        self.base_url = self._validate_url(base_url)
+
+    def _validate_url(self, url: str) -> str:
+        """Validate Ollama URL to prevent SSRF attacks."""
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+
+        # Extract hostname (handle IPv6)
+        hostname = parsed.hostname or ""
+
+        # Only allow localhost connections
+        if hostname not in self.ALLOWED_HOSTS:
+            print(f"Warning: Ollama URL must be localhost. Got: {hostname}. Using default.")
+            return "http://localhost:11434"
+
+        return url
 
     def is_available(self) -> bool:
         try:

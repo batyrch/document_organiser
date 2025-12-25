@@ -132,9 +132,10 @@ def setup_logging() -> logging.Logger:
 # Initialize logger
 logger = setup_logging()
 
-# Increase PIL's decompression bomb limit for large scanned documents
-# Default is ~178MP, increase to 500MP for large medical scans, etc.
-Image.MAX_IMAGE_PIXELS = 500_000_000  # 500 megapixels
+# Set a reasonable PIL decompression limit for scanned documents
+# Default is ~178MP, we allow up to 200MP for large medical scans
+# This prevents decompression bomb attacks while supporting most real documents
+Image.MAX_IMAGE_PIXELS = 200_000_000  # 200 megapixels (safer than 500MP)
 
 # ==============================================================================
 # CONFIGURATION - JOHNNY.DECIMAL SYSTEM
