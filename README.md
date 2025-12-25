@@ -130,8 +130,8 @@ Launch the UI with `streamlit run ui.py`
   - **Breadcrumb navigation**: Shows current path hierarchy
 
 ### Document Management
-- **Grid/List view toggle**: Switch between thumbnail grid (⊞) and list view (☰)
-- File list with metadata status (✅ has metadata, ⏳ pending)
+- **Grid/List view toggle**: Switch between thumbnail grid and list view
+- File list with metadata status ([OK] has metadata, [...] pending)
 - **Colored tag chips**: Tags displayed with category-based colors
 - PDF and image preview with thumbnails
 - Extracted text display
@@ -158,6 +158,7 @@ Launch the UI with `streamlit run ui.py`
 - **Rebuild Hash Index**: Scan all files and rebuild duplicate detection index (Settings → About → Advanced)
 
 ### UI Polish
+- **Lucide Icons**: Clean, modern SVG icons throughout the UI (replaces emojis)
 - **Hand loading animation**: Animated hand indicator during processing operations
 - **PDF thumbnails**: Visual previews in grid view (requires pymupdf)
 

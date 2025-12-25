@@ -10,6 +10,7 @@ Automatically organize scanned documents using AI-powered categorization with th
 document_organiser/
 ├── document_organizer.py   # Main organizer script with JD integration
 ├── ui.py                   # Streamlit web UI for manual classification
+├── icons.py                # Lucide Icons SVG definitions and helper functions
 ├── ai_providers.py         # AI provider integrations (Claude, OpenAI, Ollama, etc.)
 ├── settings.py             # Persistent settings management
 ├── device_auth.py          # Device authentication handling
@@ -249,8 +250,8 @@ streamlit run ui.py
 - **Breadcrumb navigation**: Shows current path hierarchy in browse mode
 
 **File Management:**
-- **Grid/List view toggle**: Switch between thumbnail grid (⊞) and list view (☰)
-- File list with metadata status (✅ has metadata, ⏳ pending)
+- **Grid/List view toggle**: Switch between thumbnail grid and list view
+- File list with metadata status ([OK] has metadata, [...] pending)
 - **Colored tag chips**: Tags displayed with category-based colors (TAG_COLORS mapping)
 - Checkbox selection for bulk operations (Select All uses versioned keys for proper state sync)
 - Search/filter by metadata (issuer, document_type, tags, category, text)
@@ -288,12 +289,21 @@ streamlit run ui.py
 
 **UI Components (ui.py):**
 - `TAG_COLORS` - Color mapping for JD areas and common tags
-- `TAG_CHIPS_CSS` - Styles for chips, grid cards, breadcrumbs, destination preview
+- `TAG_CHIPS_CSS` - Styles for chips, grid cards, breadcrumbs, destination preview, icon headers
 - `render_tag_chips()` - Renders colored tag chips HTML
 - `generate_thumbnail()` - Creates cached thumbnails for images/PDFs
 - `render_breadcrumb()` - Renders folder navigation breadcrumb
 - `render_destination_preview()` - Shows filing destination before processing
-- `get_file_icon()` - Returns emoji icon for file types
+- `get_file_icon()` - Returns Lucide SVG icon for file types
+- `icon_title()` / `icon_subheader()` - Renders page titles/headers with Lucide icons
+- `icon_label()` - Returns HTML for inline icon + text labels
+
+**Icons Module (icons.py):**
+- `LUCIDE_ICONS` - Dictionary of 35+ Lucide icon SVG path definitions
+- `lucide_icon(name, size, color)` - Renders Lucide icon as inline SVG HTML
+- `file_type_icon(suffix, size)` - Maps file extensions to appropriate icons
+- `status_icon(analyzed, size)` - Returns colored status indicator icons
+- `icon_with_text(icon, text, size)` - Combines icon and text with proper alignment
 
 ## Running Migration
 

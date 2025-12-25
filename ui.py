@@ -17,6 +17,9 @@ from pathlib import Path
 from datetime import datetime
 import base64
 
+# Import icons
+from icons import lucide_icon, icon_with_text, status_icon, file_type_icon
+
 # Import from main module
 from document_organizer import (
     JD_AREAS,
@@ -56,7 +59,7 @@ except ImportError:
 # Page config
 st.set_page_config(
     page_title="Document Organizer",
-    page_icon="📁",
+    page_icon=":material/folder:",
     layout="wide",
 )
 
@@ -343,6 +346,37 @@ TAG_CHIPS_CSS = """
     color: #6c757d;
     margin-bottom: 4px;
 }
+/* Icon header styles */
+.icon-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0.5rem 0 1rem 0;
+}
+.icon-subheader {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0.75rem 0 0.5rem 0;
+}
+.icon-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+/* File list item with icon */
+.file-item-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.file-item-icon svg {
+    flex-shrink: 0;
+}
 </style>
 """
 
@@ -381,6 +415,26 @@ def render_category_chip(area: str, category: str) -> str:
     color = TAG_COLORS.get(area_lower, "#95a5a6")
     cat_short = category.split(" ", 1)[1] if category and " " in category else category
     return f'<span class="tag-chip" style="background:{color}">{cat_short}</span>'
+
+
+def icon_title(icon_name: str, text: str, size: int = 28) -> None:
+    """Render a page title with a Lucide icon."""
+    st.markdown(TAG_CHIPS_CSS, unsafe_allow_html=True)
+    icon_svg = lucide_icon(icon_name, size=size)
+    st.markdown(f'<div class="icon-title">{icon_svg}<span>{text}</span></div>', unsafe_allow_html=True)
+
+
+def icon_subheader(icon_name: str, text: str, size: int = 22) -> None:
+    """Render a subheader with a Lucide icon."""
+    st.markdown(TAG_CHIPS_CSS, unsafe_allow_html=True)
+    icon_svg = lucide_icon(icon_name, size=size)
+    st.markdown(f'<div class="icon-subheader">{icon_svg}<span>{text}</span></div>', unsafe_allow_html=True)
+
+
+def icon_label(icon_name: str, text: str, size: int = 16) -> str:
+    """Return HTML for an inline icon + text label."""
+    icon_svg = lucide_icon(icon_name, size=size)
+    return f'<span class="icon-label">{icon_svg}<span>{text}</span></span>'
 
 
 # ==============================================================================
@@ -436,22 +490,9 @@ def generate_thumbnail(file_path: str, size: tuple = (200, 200)) -> bytes | None
     return None
 
 
-def get_file_icon(suffix: str) -> str:
-    """Get an emoji icon for a file type."""
-    icons = {
-        '.pdf': '📄',
-        '.png': '🖼️',
-        '.jpg': '🖼️',
-        '.jpeg': '🖼️',
-        '.tiff': '🖼️',
-        '.bmp': '🖼️',
-        '.docx': '📝',
-        '.xlsx': '📊',
-        '.pptx': '📽️',
-        '.txt': '📃',
-        '.html': '🌐',
-    }
-    return icons.get(suffix.lower(), '📁')
+def get_file_icon(suffix: str, size: int = 20) -> str:
+    """Get a Lucide icon for a file type. Returns HTML SVG string."""
+    return file_type_icon(suffix, size=size)
 
 
 # ==============================================================================
@@ -505,7 +546,7 @@ def render_destination_preview(area: str, category: str, issuer: str, doc_type: 
 
     html = f'''
     <div class="dest-preview">
-        <div class="dest-preview-label">📍 Destination Preview</div>
+        <div class="dest-preview-label">{lucide_icon("map-pin", size=14)} Destination Preview</div>
         <div class="dest-preview-path">{full_path}</div>
     </div>
     '''
@@ -799,7 +840,7 @@ def cleanup_orphaned_analysis_files(folder: Path) -> int:
 
 
 def main():
-    st.title("📁 Document Organizer")
+    icon_title("folder-check", "Document Organizer")
 
     # Get settings
     settings = get_settings()
@@ -815,7 +856,7 @@ def main():
         st.divider()
 
         # Source mode toggle
-        st.subheader("📂 File Source")
+        icon_subheader("folder-tree", "File Source")
         source_mode = st.radio(
             "Select source",
             ["Inbox", "Browse Folder"],
@@ -886,7 +927,7 @@ def main():
 
         # Analyze buttons - only for inbox mode
         if not st.session_state.browse_mode:
-            if st.button("🤖 Analyze All New Files", width="stretch"):
+            if st.button("Analyze All New Files", width="stretch"):
                 # Get files that need analysis
                 files_to_analyze = [(f, a, d) for f, a, d in all_files if not a]
                 total = len(files_to_analyze)
@@ -929,13 +970,13 @@ def main():
                 st.rerun()
             st.divider()
 
-        if st.button("🔄 Refresh", use_container_width=True):
+        if st.button("Refresh", use_container_width=True):
             st.rerun()
 
         st.divider()
 
         # File upload in sidebar (always available)
-        with st.expander("📤 Upload Files"):
+        with st.expander("Upload Files"):
             uploaded_files = st.file_uploader(
                 "Drop files here",
                 accept_multiple_files=True,
@@ -962,7 +1003,7 @@ def main():
                 st.rerun()
 
     # Search section
-    st.subheader("🔍 Search")
+    icon_subheader("search", "Search")
     col_search1, col_search2 = st.columns([3, 1])
     with col_search1:
         search_query = st.text_input("Search", value=st.session_state.search_query,
@@ -980,9 +1021,9 @@ def main():
 
     if not files:
         if search_query:
-            st.info(f"🔍 No files match '{search_query}' in {search_field}")
+            st.info(f"No files match '{search_query}' in {search_field}")
         else:
-            st.info("📭 No files in inbox. Upload documents below or drop them into the inbox folder.")
+            st.info("No files in inbox. Upload documents below or drop them into the inbox folder.")
 
             # Drag & drop file uploader
             uploaded_files = st.file_uploader(
@@ -1024,17 +1065,17 @@ def main():
         # Header with view toggle
         col_header, col_view = st.columns([3, 1])
         with col_header:
-            st.subheader(f"📥 Files ({len(files)})")
+            icon_subheader("inbox", f"Files ({len(files)})")
         with col_view:
             view_mode = st.radio(
                 "View",
-                ["☰", "⊞"],  # List and Grid icons
+                ["List", "Grid"],
                 index=0 if st.session_state.view_mode == "list" else 1,
                 horizontal=True,
                 label_visibility="collapsed",
                 key="view_toggle"
             )
-            st.session_state.view_mode = "list" if view_mode == "☰" else "grid"
+            st.session_state.view_mode = "list" if view_mode == "List" else "grid"
 
         # Breadcrumb navigation for browse mode
         if st.session_state.browse_mode:
@@ -1084,15 +1125,15 @@ def main():
                             st.image(thumb, use_container_width=True)
                         else:
                             # Show file icon placeholder
-                            icon = get_file_icon(file.suffix)
+                            icon = get_file_icon(file.suffix, size=40)
                             st.markdown(
                                 f'<div style="height:80px;background:#f0f0f0;display:flex;align-items:center;'
-                                f'justify-content:center;font-size:32px;border-radius:4px;">{icon}</div>',
+                                f'justify-content:center;border-radius:4px;">{icon}</div>',
                                 unsafe_allow_html=True
                             )
 
                         # File info
-                        status = "✅" if analyzed else "⏳"
+                        status = "[OK]" if analyzed else "[...]"
                         if st.button(f"{status} {file.name[:18]}{'...' if len(file.name) > 18 else ''}",
                                     key=f"file_{i}", use_container_width=True):
                             st.session_state.current_file = file
@@ -1118,7 +1159,7 @@ def main():
                         st.session_state.selected_files.discard(str(file))
 
                 with col_btn:
-                    status = "✅" if analyzed else "⏳"
+                    status = "[OK]" if analyzed else "[...]"
                     # Show issuer/type preview if available
                     preview = ""
                     if analysis:
@@ -1141,7 +1182,7 @@ def main():
     with col2:
         # Bulk actions for selected files
         if st.session_state.selected_files:
-            st.subheader(f"📦 Bulk Actions ({len(st.session_state.selected_files)} selected)")
+            icon_subheader("layers", f"Bulk Actions ({len(st.session_state.selected_files)} selected)")
 
             areas, area_categories = get_areas_and_categories()
 
@@ -1155,7 +1196,7 @@ def main():
             col_act1, col_act2, col_act3, col_act4 = st.columns(4)
 
             with col_act1:
-                if st.button("📁 Move Selected", type="primary", width="stretch"):
+                if st.button("Move Selected", type="primary", width="stretch"):
                     moved = 0
                     for file_str in list(st.session_state.selected_files):
                         file_path = Path(file_str)
@@ -1197,7 +1238,7 @@ def main():
                     st.rerun()
 
             with col_act2:
-                if st.button("🔄 Reanalyze Selected", width="stretch"):
+                if st.button("Reanalyze Selected", width="stretch"):
                     files_to_reanalyze = [f for f in st.session_state.selected_files if Path(f).exists()]
                     total = len(files_to_reanalyze)
 
@@ -1237,7 +1278,7 @@ def main():
                     st.rerun()
 
             with col_act3:
-                if st.button("🗑️ Delete Selected", width="stretch"):
+                if st.button("Delete Selected", width="stretch"):
                     if st.session_state.get('confirm_bulk_delete'):
                         deleted = 0
                         for file_str in list(st.session_state.selected_files):
@@ -1256,7 +1297,7 @@ def main():
 
             with col_act4:
                 fm_name = get_file_manager_name()
-                if st.button(f"📂 Reveal in {fm_name}", key="bulk_reveal", use_container_width=True):
+                if st.button(f"Reveal in {fm_name}", key="bulk_reveal", use_container_width=True):
                     for file_str in st.session_state.selected_files:
                         file_path = Path(file_str)
                         if file_path.exists():
@@ -1267,11 +1308,11 @@ def main():
 
         # Single file view
         if st.session_state.current_file is None:
-            st.info("👈 Select a file from the inbox to preview and classify")
+            st.info("Select a file from the inbox to preview and classify")
             st.markdown("""
             **Workflow:**
-            1. Files with ✅ have been analyzed (AI suggestion ready)
-            2. Files with ⏳ need analysis - click "Analyze All New Files"
+            1. Files marked [OK] have been analyzed (AI suggestion ready)
+            2. Files marked [...] need analysis - click "Analyze All New Files"
             3. Select a file, review the suggestion, adjust if needed
             4. Click "Process & File" to organize
 
@@ -1292,7 +1333,7 @@ def main():
         # Navigation buttons
         col_nav1, col_nav2, col_nav3 = st.columns([1, 3, 1])
         with col_nav1:
-            if st.button("⬅️ Prev", width="stretch"):
+            if st.button("Prev", width="stretch"):
                 if st.session_state.current_file_idx > 0:
                     st.session_state.current_file_idx -= 1
                     st.session_state.current_file = files[st.session_state.current_file_idx][0]
@@ -1301,13 +1342,13 @@ def main():
             st.markdown(f"**{st.session_state.current_file_idx + 1} / {len(files)}**",
                        unsafe_allow_html=True)
         with col_nav3:
-            if st.button("Next ➡️", width="stretch"):
+            if st.button("Next", width="stretch"):
                 if st.session_state.current_file_idx < len(files) - 1:
                     st.session_state.current_file_idx += 1
                     st.session_state.current_file = files[st.session_state.current_file_idx][0]
                     st.rerun()
 
-        st.subheader(f"📄 {file_path.name}")
+        icon_subheader("file-scan", file_path.name)
 
         # Load existing analysis if available
         analysis = load_analysis(str(file_path))
@@ -1328,7 +1369,7 @@ def main():
         with tab2:
             if not extracted_text:
                 st.warning("No extracted text available. Click 'Analyze This File' to extract.")
-                if st.button("📖 Analyze This File"):
+                if st.button("Analyze This File"):
                     with hand_spinner("Extracting and analyzing..."):
                         preprocess_file(str(file_path))
                     st.rerun()
@@ -1338,11 +1379,11 @@ def main():
         st.divider()
 
         # Classification section
-        st.subheader("🏷️ Classification")
+        icon_subheader("tag", "Classification")
 
         # Show analysis status
         if analysis:
-            with st.expander("🤖 AI Analysis", expanded=True):
+            with st.expander("AI Analysis", expanded=True):
                 col_s1, col_s2 = st.columns(2)
                 with col_s1:
                     st.write(f"**Suggested Area:** {analysis.get('jd_area', 'Unknown')}")
@@ -1358,13 +1399,13 @@ def main():
                     st.markdown(render_tag_chips(analysis.get('tags', [])), unsafe_allow_html=True)
 
                 # Re-analyze button
-                if st.button("🔄 Re-analyze with AI"):
+                if st.button("Re-analyze with AI"):
                     with hand_spinner("Re-analyzing..."):
                         reanalyze_file(file_path)
                     st.rerun()
         else:
-            st.warning("⏳ This file hasn't been analyzed yet.")
-            if st.button("🤖 Analyze Now", type="primary"):
+            st.warning("This file hasn't been analyzed yet.")
+            if st.button("Analyze Now", type="primary"):
                 with hand_spinner("Analyzing..."):
                     preprocess_file(str(file_path))
                 st.rerun()
@@ -1373,7 +1414,7 @@ def main():
         st.divider()
 
         # Manual classification form
-        st.subheader("✏️ Final Classification")
+        icon_subheader("edit-3", "Final Classification")
         st.caption("Adjust the AI suggestions or keep them as-is")
 
         areas, area_categories = get_areas_and_categories()
@@ -1433,7 +1474,7 @@ def main():
         col_a1, col_a2, col_a3, col_a4, col_a5 = st.columns([1, 1, 1, 1, 1])
 
         with col_a1:
-            if st.button("✅ Process & File", type="primary", width="stretch"):
+            if st.button("Process & File", type="primary", width="stretch"):
                 # Build final analysis dict from form
                 final_analysis = {
                     "jd_area": selected_area,
@@ -1470,7 +1511,7 @@ def main():
                         save_processed_files(output_dir, processed)
 
                         st.session_state.processed_count += 1
-                        st.success(f"✅ Filed to: {dest_path}")
+                        st.success(f"Filed to: {dest_path}")
 
                         # Move to next file
                         if st.session_state.current_file_idx < len(files) - 1:
@@ -1491,7 +1532,7 @@ def main():
                         st.error(f"Error filing document: {e}")
 
         with col_a2:
-            if st.button("⏭️ Skip", width="stretch"):
+            if st.button("Skip", width="stretch"):
                 # Move to next file
                 if st.session_state.current_file_idx < len(files) - 1:
                     st.session_state.current_file_idx += 1
@@ -1501,14 +1542,14 @@ def main():
                 st.rerun()
 
         with col_a3:
-            if st.button("⬅️ Previous", width="stretch"):
+            if st.button("Previous", width="stretch"):
                 if st.session_state.current_file_idx > 0:
                     st.session_state.current_file_idx -= 1
                     st.session_state.current_file = files[st.session_state.current_file_idx][0]
                     st.rerun()
 
         with col_a4:
-            if st.button("🗑️ Delete", width="stretch"):
+            if st.button("Delete", width="stretch"):
                 if st.session_state.get('confirm_delete'):
                     # Delete both document and analysis
                     delete_analysis_file(file_path)
@@ -1522,13 +1563,13 @@ def main():
 
         with col_a5:
             fm_name = get_file_manager_name()
-            if st.button(f"📂 Reveal in {fm_name}", key="single_reveal", use_container_width=True):
+            if st.button(f"Reveal in {fm_name}", key="single_reveal", use_container_width=True):
                 reveal_in_file_manager(file_path)
 
 
 def render_settings_page():
     """Render the Settings page for configuring the application."""
-    st.title("Settings")
+    icon_title("settings", "Settings")
 
     settings = get_settings()
 
@@ -1540,7 +1581,7 @@ def render_settings_page():
     tab_dirs, tab_ai, tab_about = st.tabs(["Directories", "AI Provider", "About"])
 
     with tab_dirs:
-        st.subheader("Directory Configuration")
+        icon_subheader("folder-tree", "Directory Configuration")
 
         st.markdown("""
         Configure where your documents are stored. The **Output Directory** is the root
@@ -1615,7 +1656,7 @@ def render_settings_page():
                 st.error(f"Error creating directories: {error}")
 
     with tab_ai:
-        st.subheader("AI Provider Configuration")
+        icon_subheader("brain", "AI Provider Configuration")
 
         st.markdown("""
         Choose how documents are analyzed and categorized. You can use cloud AI services
@@ -1745,7 +1786,7 @@ def render_settings_page():
             st.success("AI settings saved!")
 
     with tab_about:
-        st.subheader("About Document Organizer")
+        icon_subheader("info", "About Document Organizer")
 
         st.markdown("""
         **Document Organizer** automatically organizes your scanned documents using
@@ -1792,7 +1833,7 @@ def render_settings_page():
             col1, col2 = st.columns(2)
 
             with col1:
-                if st.button("🔄 Rebuild Hash Index", type="secondary", help="Scan all files and rebuild duplicate detection index"):
+                if st.button("Rebuild Hash Index", type="secondary", help="Scan all files and rebuild duplicate detection index"):
                     if output_dir:
                         with st.spinner("Scanning files and building hash index..."):
                             index = build_hash_index(output_dir, force_rebuild=True)
@@ -1841,7 +1882,7 @@ def render_app():
 
 def render_setup_wizard():
     """First-run setup wizard."""
-    st.title("Welcome to Document Organizer")
+    icon_title("folder-check", "Welcome to Document Organizer")
 
     st.markdown("""
     Let's get you set up! This wizard will help you configure the essential settings.
@@ -1850,7 +1891,7 @@ def render_setup_wizard():
     settings = get_settings()
 
     # Step 1: Directories
-    st.subheader("Step 1: Choose your document location")
+    icon_subheader("folder", "Step 1: Choose your document location")
 
     st.markdown("""
     Where would you like to store your organized documents?
@@ -1865,7 +1906,7 @@ def render_setup_wizard():
     )
 
     # Step 2: AI Provider
-    st.subheader("Step 2: Choose AI provider (optional)")
+    icon_subheader("brain", "Step 2: Choose AI provider (optional)")
 
     st.markdown("""
     AI helps categorize your documents automatically. Choose one:
