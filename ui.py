@@ -624,6 +624,10 @@ if "view_mode" not in st.session_state:
     st.session_state.view_mode = "list"  # "list" or "grid"
 if "recent_files" not in st.session_state:
     st.session_state.recent_files = []  # Track recently processed files
+if "nav_history" not in st.session_state:
+    st.session_state.nav_history = []  # Navigation history for back/forward
+if "nav_history_idx" not in st.session_state:
+    st.session_state.nav_history_idx = -1  # Current position in history
 
 
 def get_inbox_files(inbox_dir: str) -> list[tuple[Path, bool, dict | None]]:
@@ -880,6 +884,71 @@ def main():
             current_folder = browse_folder or output_dir
             current_path = Path(current_folder)
 
+            # Navigation helper functions
+            def navigate_to(path: str, add_to_history: bool = True):
+                """Navigate to a path, optionally adding to history."""
+                if add_to_history:
+                    current = st.session_state.browse_folder_input or output_dir
+                    # Only add if different from current location
+                    if current != path:
+                        # Truncate forward history when navigating to new location
+                        idx = st.session_state.nav_history_idx
+                        st.session_state.nav_history = st.session_state.nav_history[:idx + 1]
+                        st.session_state.nav_history.append(current)
+                        st.session_state.nav_history_idx = len(st.session_state.nav_history) - 1
+                        # Limit history size
+                        if len(st.session_state.nav_history) > 50:
+                            st.session_state.nav_history = st.session_state.nav_history[-50:]
+                            st.session_state.nav_history_idx = len(st.session_state.nav_history) - 1
+                st.session_state.browse_folder_input = path
+
+            def go_back():
+                """Go to previous location in history."""
+                if st.session_state.nav_history_idx >= 0:
+                    # Save current location for forward
+                    current = st.session_state.browse_folder_input or output_dir
+                    idx = st.session_state.nav_history_idx
+                    # If we're not already in forward territory, save current
+                    if idx == len(st.session_state.nav_history) - 1:
+                        st.session_state.nav_history.append(current)
+                    prev_path = st.session_state.nav_history[idx]
+                    st.session_state.nav_history_idx -= 1
+                    st.session_state.browse_folder_input = prev_path
+
+            def go_forward():
+                """Go to next location in history."""
+                if st.session_state.nav_history_idx < len(st.session_state.nav_history) - 1:
+                    st.session_state.nav_history_idx += 1
+                    next_path = st.session_state.nav_history[st.session_state.nav_history_idx]
+                    st.session_state.browse_folder_input = next_path
+
+            def go_up():
+                """Go to parent folder."""
+                if current_path.parent.exists():
+                    navigate_to(str(current_path.parent))
+
+            def go_down():
+                """Go into first subfolder."""
+                subfolders = sorted([d for d in current_path.iterdir() if d.is_dir()])
+                if subfolders:
+                    navigate_to(str(subfolders[0]))
+
+            # Navigation buttons row
+            can_go_back = st.session_state.nav_history_idx >= 0
+            can_go_forward = st.session_state.nav_history_idx < len(st.session_state.nav_history) - 1
+            can_go_up = current_path != Path(output_dir) and current_path.parent.exists()
+            can_go_down = current_path.exists() and any(d.is_dir() for d in current_path.iterdir()) if current_path.exists() else False
+
+            nav_cols = st.columns(4)
+            with nav_cols[0]:
+                st.button("◀", key="nav_back", on_click=go_back, disabled=not can_go_back, help="Back", use_container_width=True)
+            with nav_cols[1]:
+                st.button("▶", key="nav_forward", on_click=go_forward, disabled=not can_go_forward, help="Forward", use_container_width=True)
+            with nav_cols[2]:
+                st.button("▲", key="nav_up", on_click=go_up, disabled=not can_go_up, help="Parent folder", use_container_width=True)
+            with nav_cols[3]:
+                st.button("▼", key="nav_down", on_click=go_down, disabled=not can_go_down, help="Into subfolder", use_container_width=True)
+
             # Subfolder dropdown navigation
             if current_path.exists() and current_path.is_dir():
                 subfolders = sorted([d.name for d in current_path.iterdir() if d.is_dir()])
@@ -889,8 +958,8 @@ def main():
                     def navigate_subfolder():
                         selected = st.session_state.subfolder_select
                         if selected != "(current folder)":
-                            current = st.session_state.browse_folder_input or output_dir
-                            st.session_state.browse_folder_input = str(Path(current) / selected)
+                            new_path = str(current_path / selected)
+                            navigate_to(new_path)
 
                     st.selectbox(
                         "Navigate to subfolder",

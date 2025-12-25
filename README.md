@@ -126,6 +126,9 @@ Launch the UI with `streamlit run ui.py`
 - **Browse Mode**: Scan any folder to view/manage existing documents
   - Toggle between modes in sidebar
   - Custom folder path with recursive option
+  - **Navigation bar**: ◀ Back | ▶ Forward | ▲ Up | ▼ Down buttons
+    - History tracking (up to 50 locations)
+    - Quick parent/child folder navigation
   - **Subfolder dropdown**: Navigate into subdirectories quickly
   - **Breadcrumb navigation**: Shows current path hierarchy
 

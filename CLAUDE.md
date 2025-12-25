@@ -147,6 +147,11 @@ Examples:
 - `hand_spinner()` - Context manager for animated hand loading indicator
 - **Browse Mode**: Switch between Inbox and custom folder scanning
   - Subfolder dropdown for quick navigation into subdirectories
+  - **Navigation bar**: Back/Forward/Up/Down buttons with history tracking
+    - ◀ Back: Go to previous location (up to 50 locations in history)
+    - ▶ Forward: Go forward after going back
+    - ▲ Up: Go to parent folder
+    - ▼ Down: Go into first subfolder
 
 ### preview_renames.py
 - Scans existing jd_documents and proposes new names based on naming convention
@@ -248,6 +253,7 @@ streamlit run ui.py
 - Toggle between modes with radio button in sidebar
 - Custom folder path input with recursive toggle
 - **Breadcrumb navigation**: Shows current path hierarchy in browse mode
+- **Navigation bar**: ◀ Back | ▶ Forward | ▲ Up | ▼ Down buttons with history
 
 **File Management:**
 - **Grid/List view toggle**: Switch between thumbnail grid and list view
