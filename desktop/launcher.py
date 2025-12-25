@@ -3,7 +3,7 @@
 Desktop launcher for Document Organizer.
 
 This script:
-1. Starts the Streamlit server in the background
+1. Starts the Streamlit server in-process
 2. Opens the user's default browser to the app
 3. Handles graceful shutdown
 
@@ -15,10 +15,12 @@ import sys
 import time
 import socket
 import signal
-import subprocess
 import webbrowser
 import threading
 from pathlib import Path
+
+# Required for PyInstaller multiprocessing support
+from multiprocessing import freeze_support
 
 
 def get_free_port():
@@ -53,121 +55,89 @@ def get_app_dir():
         return Path(__file__).parent.parent
 
 
-def show_error_dialog(title, message):
-    """Show an error dialog on macOS."""
-    if sys.platform == "darwin":
-        try:
-            subprocess.run([
-                "osascript", "-e",
-                f'display dialog "{message}" with title "{title}" buttons {{"OK"}} default button "OK" with icon stop'
-            ], check=False)
-        except Exception:
-            pass  # Fall through to print
-    print(f"Error: {title}\n{message}")
-
-
 def main():
+    # Required for PyInstaller on Windows
+    freeze_support()
+
     app_dir = get_app_dir()
     ui_path = app_dir / "ui.py"
 
     # Ensure we have the UI file
     if not ui_path.exists():
-        show_error_dialog(
-            "Document Organizer",
-            f"Could not find ui.py at {ui_path}\n\nThe application may be corrupted. Please re-download."
-        )
+        print(f"Error: Could not find ui.py at {ui_path}")
+        print("The application may be corrupted. Please re-download.")
+        input("Press Enter to exit...")
         sys.exit(1)
 
     # Find a free port
     port = get_free_port()
     host = "localhost"
     local_url = f"http://{host}:{port}"
-    # Open the hosted app page which connects to local server
-    app_url = f"https://batyrch.github.io/document_organiser/app.html?port={port}"
+
+    # Determine the URL to open
+    local_app_html = app_dir / "app.html"
+    if local_app_html.exists():
+        app_url = f"file://{local_app_html}?port={port}"
+    else:
+        app_url = local_url
 
     print(f"Starting Document Organizer...")
     print(f"App directory: {app_dir}")
     print(f"Server will be available at: {local_url}")
 
-    # Set up environment
-    env = os.environ.copy()
-    env["STREAMLIT_SERVER_PORT"] = str(port)
-    env["STREAMLIT_SERVER_HEADLESS"] = "true"
-    env["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
-    env["STREAMLIT_SERVER_ADDRESS"] = host
+    # Set Streamlit configuration via environment
+    os.environ["STREAMLIT_SERVER_PORT"] = str(port)
+    os.environ["STREAMLIT_SERVER_HEADLESS"] = "true"
+    os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+    os.environ["STREAMLIT_SERVER_ADDRESS"] = host
+    os.environ["STREAMLIT_BROWSER_SERVER_ADDRESS"] = host
+    os.environ["STREAMLIT_BROWSER_SERVER_PORT"] = str(port)
 
-    # Determine the Python/Streamlit executable
-    if getattr(sys, 'frozen', False):
-        # When frozen, streamlit should be in the same directory
-        if sys.platform == "win32":
-            streamlit_cmd = str(app_dir / "streamlit.exe")
-        else:
-            streamlit_cmd = str(app_dir / "streamlit")
+    # Change to app directory so imports work
+    os.chdir(app_dir)
 
-        # Fallback to module execution
-        if not Path(streamlit_cmd).exists():
-            streamlit_cmd = [sys.executable, "-m", "streamlit"]
-        else:
-            streamlit_cmd = [streamlit_cmd]
-    else:
-        streamlit_cmd = [sys.executable, "-m", "streamlit"]
+    # Add app_dir to Python path for imports
+    if str(app_dir) not in sys.path:
+        sys.path.insert(0, str(app_dir))
 
-    # Build the command
-    cmd = streamlit_cmd + [
-        "run",
-        str(ui_path),
-        "--server.port", str(port),
-        "--server.headless", "true",
-        "--browser.gatherUsageStats", "false",
-        "--server.address", host,
-    ]
-
-    print(f"Running: {' '.join(cmd)}")
-
-    # Start the Streamlit server
-    process = subprocess.Popen(
-        cmd,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-    )
-
-    # Handle shutdown signals
-    def shutdown(signum=None, frame=None):
-        print("\nShutting down...")
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, shutdown)
-    signal.signal(signal.SIGTERM, shutdown)
-    if sys.platform != "win32":
-        signal.signal(signal.SIGHUP, shutdown)
-
-    # Wait for server to start, then open browser
+    # Open browser after a delay (server needs time to start)
     def open_browser():
-        if wait_for_server(host, port):
+        if wait_for_server(host, port, timeout=60):
             print(f"Opening browser to {app_url}")
             webbrowser.open(app_url)
         else:
             print("Warning: Server did not start within timeout")
+            print(f"Try manually opening: {local_url}")
 
     browser_thread = threading.Thread(target=open_browser, daemon=True)
     browser_thread.start()
 
-    # Stream output from the server
+    # Run Streamlit directly (not as subprocess)
+    # This avoids PyInstaller's sys.executable issue
     try:
-        for line in process.stdout:
-            print(line, end="")
+        from streamlit.web import cli as stcli
+
+        sys.argv = [
+            "streamlit",
+            "run",
+            str(ui_path),
+            "--server.port", str(port),
+            "--server.headless", "true",
+            "--browser.gatherUsageStats", "false",
+            "--server.address", host,
+        ]
+
+        print(f"Running Streamlit with args: {sys.argv}")
+        stcli.main()
+
     except KeyboardInterrupt:
-        pass
-    finally:
-        shutdown()
+        print("\nShutting down...")
+    except Exception as e:
+        print(f"Error starting Streamlit: {e}")
+        import traceback
+        traceback.print_exc()
+        input("Press Enter to exit...")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

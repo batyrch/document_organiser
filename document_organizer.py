@@ -30,8 +30,12 @@ import yaml
 from dotenv import load_dotenv
 from PIL import Image
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file (if it exists and is accessible)
+# In bundled apps, API keys are stored in OS keychain via settings.py instead
+try:
+    load_dotenv()
+except (PermissionError, OSError):
+    pass  # .env not accessible, likely running as bundled app
 
 
 # ==============================================================================

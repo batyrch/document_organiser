@@ -44,6 +44,7 @@ def build():
         "ai_providers.py",
         "settings.py",
         "config.yaml",
+        "pwa/app.html",  # Local HTML wrapper to avoid HTTPS/localhost issues
     ]
 
     # Build the PyInstaller command
