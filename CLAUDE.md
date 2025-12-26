@@ -136,10 +136,34 @@ Examples:
 - **First-run Setup Wizard**: Guides new users through initial configuration
 - **Settings Page**: Configure directories, AI providers, API keys
 - **Navigation**: Sidebar radio to switch between Documents and Settings
+- **Gallery View Layout** (macOS Finder-inspired):
+  ```
+  ┌──────────────────────────────────────────────────────────────────┐
+  │  [Search bar]                                                     │
+  ├──────────────────────────────────────────────────────────────────┤
+  │  Actions: [Area ▼] [Category ▼] [Move] [Reanalyze] [Delete]      │
+  ├──────────────────────────────────────────────────────────────────┤
+  │  [Select/Done] ◀ [thumb1] [thumb2] [THUMB3*] [thumb4] ▶          │
+  ├──────────────────────────────────────────────────────────────────┤
+  │              LARGE PREVIEW (full width)                          │
+  ├──────────────────────────────────────────────────────────────────┤
+  │  Classification: Issuer | Type | Date | Tags | Summary           │
+  └──────────────────────────────────────────────────────────────────┘
+  ```
 - `render_app()` - Main entry point, handles setup wizard vs normal app
 - `render_settings_page()` - Full settings UI with tabs (Directories, AI, About)
   - **Advanced section**: Rebuild Hash Index button, Reset Settings
 - `render_setup_wizard()` - First-run configuration wizard
+- **Gallery View Components:**
+  - `render_actions_toolbar()` - Full-width toolbar with Area/Category dropdowns and action buttons
+  - `render_gallery_strip()` - Paginated thumbnail gallery showing 7 files at a time with scroll-by-1 navigation
+  - `render_preview()` - Full-width file preview (PDF/Image/Text tabs)
+  - `render_classification()` - Compact AI analysis display below preview
+- **Thumbnail Generation** (`generate_thumbnail()`):
+  - High-quality thumbnails at 130x100px display size
+  - PDF rendering at 2.0x resolution for sharp text
+  - UnsharpMask filter + contrast boost for text-heavy documents
+  - Cached for 1 hour to improve performance
 - `get_inbox_files()` - List files in inbox with analysis status
 - `get_folder_files()` - List files in any folder with metadata (recursive option)
 - `filter_files()` - Search/filter by metadata fields
@@ -262,45 +286,57 @@ streamlit run ui.py
 - **Breadcrumb navigation**: Shows current path hierarchy in browse mode
 - **Navigation bar**: ◀ Back | ▶ Forward | ▲ Up | ▼ Down buttons with history
 
+**Gallery View Layout (macOS Finder-inspired):**
+The UI uses a vertical stacked layout inspired by macOS Finder's Gallery View:
+1. **Actions Toolbar** (full width) - Area/Category dropdowns + Move/Reanalyze/Delete/Reveal buttons
+2. **Gallery Strip** - Horizontal scrolling thumbnails with Select/Done toggle and ◀/▶ navigation
+3. **Preview Section** (full width) - Large document preview with PDF viewer/image display/text tabs
+4. **Classification Section** - Compact metadata display (Issuer, Type, Date, Confidence, Tags, Summary)
+
 **iOS-Style Two-Mode Selection (like iOS Files app):**
-- **Browse Mode** (default): Tap file → opens preview panel with classification form
-  - No checkboxes visible
-  - Single-file actions: Process & File, Skip, Previous, Delete, Reveal
+- **Browse Mode** (default): Click thumbnail in gallery strip → shows preview below
+  - Actions toolbar always visible (disabled until file selected)
+  - Single-file actions apply to currently previewed file
 - **Selection Mode**: Tap "Select" button → enters selection mode
-  - Checkboxes appear next to each file
-  - Tap file → toggles selection (not preview)
-  - Toolbar Actions panel shows: Move, Reanalyze, Delete, Reveal
-  - Select All / Clear buttons available
+  - Checkboxes appear on gallery thumbnails
+  - Click thumbnails to toggle selection AND preview last clicked file
+  - Select All / Clear buttons appear
+  - Toolbar Actions apply to all selected files
   - Tap "Done" → exits selection mode and clears selection
 - Based on [Apple iOS Files app pattern](https://support.apple.com/guide/iphone/organize-files-and-folders-iphab82e0798/ios)
 
+**Gallery Strip Features:**
+- Horizontal scrolling thumbnail strip (up to 50 files visible)
+- Current file highlighted with blue border
+- Selected files highlighted in selection mode
+- ◀/▶ buttons for prev/next navigation
+- File count display (e.g., "3 of 15 files" or "5 selected of 15 files")
+
 **File Management:**
-- **Grid/List view toggle**: Switch between thumbnail grid and list view
-- File list with metadata status ([OK] has metadata, [...] pending)
 - **Colored tag chips**: Tags displayed with category-based colors (TAG_COLORS mapping)
 - Search/filter by metadata (issuer, document_type, tags, category, text)
-- Navigation (Prev/Next buttons, file counter) - in browse mode only
-- **Thumbnails**: PDF and image thumbnails in grid view (requires pymupdf)
+- **Thumbnails**: PDF and image thumbnails in gallery (requires pymupdf)
 
-**Document View (Browse Mode only):**
+**Document Preview (Full Width):**
 - PDF preview (embedded viewer)
 - Image preview
 - Extracted text display tab
-- AI analysis panel with all metadata fields
+- Large preview area for better document visibility
 
-**Classification (Browse Mode only):**
-- AI suggestion pre-filled in form
-- Manual override for area, category, issuer, document type, date, tags
-- **Destination preview**: Shows where file will be organized before filing
-- Re-analyze button to re-run AI on current file
+**Classification Section (Below Preview):**
+- Compact metadata row: Issuer | Type | Date | Confidence
+- AI suggested category display
+- Colored tag chips
+- Collapsible summary expander
+- "Analyze Now" button if no analysis exists
 
-**Toolbar Actions (Selection Mode only):**
-- Select All / Clear buttons
-- Move - move selected files to chosen category (auto-extracts text if missing)
-- Reanalyze - re-run text extraction on files missing `extracted_text` (skips files that already have text)
-- Delete - remove selected files
+**Toolbar Actions (Always Visible):**
+- Area/Category dropdowns (pre-filled from AI analysis)
+- Move - move file(s) to chosen category (auto-extracts text if missing)
+- Reanalyze - re-run text extraction (skips files that already have text in bulk mode)
+- Delete - remove file(s) with confirmation
 - Reveal - open in system file manager
-- All buttons disabled until files are selected
+- All buttons disabled until file is selected (browse) or files are checked (selection)
 
 **Text Extraction Behavior:**
 - **Process & File**: Automatically extracts text if not already done (prevents empty `extracted_text` in `.meta.json`)
@@ -321,14 +357,25 @@ streamlit run ui.py
 
 **UI Components (ui.py):**
 - `TAG_COLORS` - Color mapping for JD areas and common tags
-- `TAG_CHIPS_CSS` - Styles for chips, grid cards, breadcrumbs, destination preview, icon headers
+- `TAG_CHIPS_CSS` - Styles for chips, gallery cards, breadcrumbs, classification section, icon headers
 - `render_tag_chips()` - Renders colored tag chips HTML
 - `generate_thumbnail()` - Creates cached thumbnails for images/PDFs
 - `render_breadcrumb()` - Renders folder navigation breadcrumb
-- `render_destination_preview()` - Shows filing destination before processing
 - `get_file_icon()` - Returns Lucide SVG icon for file types
 - `icon_title()` / `icon_subheader()` - Renders page titles/headers with Lucide icons
 - `icon_label()` - Returns HTML for inline icon + text labels
+
+**Gallery View CSS Classes:**
+- `.gallery-strip-container` - Container for gallery strip
+- `.gallery-strip` - Flexbox horizontal scroll container
+- `.gallery-card` - Individual thumbnail card (100px width)
+- `.gallery-card.current` - Highlighted current file
+- `.gallery-card.selected` - Highlighted selected file (selection mode)
+- `.gallery-card-thumb` - Thumbnail image container (88x70px)
+- `.gallery-card-name` - Truncated filename below thumbnail
+- `.actions-toolbar` - Toolbar container styling
+- `.classification-section` - Classification section container
+- `.classification-meta` - Metadata row flexbox
 
 **Icons Module (icons.py):**
 - `LUCIDE_ICONS` - Dictionary of 35+ Lucide icon SVG path definitions

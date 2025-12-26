@@ -377,6 +377,119 @@ TAG_CHIPS_CSS = """
 .file-item-icon svg {
     flex-shrink: 0;
 }
+/* Gallery strip styles (Finder Gallery View) */
+.gallery-strip-container {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 8px;
+    margin: 8px 0;
+}
+.gallery-strip {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+    padding: 8px 4px;
+    scroll-behavior: smooth;
+}
+.gallery-strip::-webkit-scrollbar {
+    height: 6px;
+}
+.gallery-strip::-webkit-scrollbar-track {
+    background: #e0e0e0;
+    border-radius: 3px;
+}
+.gallery-strip::-webkit-scrollbar-thumb {
+    background: #bbb;
+    border-radius: 3px;
+}
+.gallery-strip::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+.gallery-card {
+    flex: 0 0 auto;
+    width: 130px;
+    text-align: center;
+    padding: 6px;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    background: white;
+}
+.gallery-card:hover {
+    background: #e8f4fd;
+    border-color: #90caf9;
+}
+.gallery-card.selected {
+    border-color: #4492f4;
+    background: #e3f2fd;
+}
+.gallery-card.current {
+    border-color: #1976d2;
+    background: #bbdefb;
+}
+.gallery-card-thumb {
+    width: 130px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+}
+.gallery-card-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 4px;
+}
+.gallery-card-name {
+    font-size: 11px;
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #333;
+}
+.gallery-card-status {
+    font-size: 9px;
+    color: #666;
+    margin-top: 2px;
+}
+.gallery-card-checkbox {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+}
+/* Actions toolbar */
+.actions-toolbar {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0;
+}
+/* Classification section */
+.classification-section {
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 12px;
+}
+.classification-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+.classification-item {
+    font-size: 13px;
+}
+.classification-item strong {
+    color: #666;
+}
 </style>
 """
 
@@ -442,10 +555,29 @@ def icon_label(icon_name: str, text: str, size: int = 16) -> str:
 # ==============================================================================
 
 @st.cache_data(ttl=3600)
-def generate_thumbnail(file_path: str, size: tuple = (200, 200)) -> bytes | None:
-    """Generate a thumbnail for a file. Returns base64-encoded image data."""
+def generate_thumbnail(file_path: str, size: tuple = (400, 400)) -> bytes | None:
+    """Generate a high-quality thumbnail for a file. Returns image data as bytes.
+
+    Optimized for text-heavy scanned documents with sharpening for better readability.
+
+    Args:
+        file_path: Path to the file
+        size: Maximum size for thumbnail generation (default 400x400 for sharp display)
+    """
+    from PIL import ImageFilter, ImageEnhance
+
     path = Path(file_path)
     suffix = path.suffix.lower()
+
+    def sharpen_for_text(img: Image.Image) -> Image.Image:
+        """Apply light sharpening to improve text readability in thumbnails."""
+        # UnsharpMask: radius=1, percent=120, threshold=2
+        # This sharpens text edges without being too harsh on photos
+        img = img.filter(ImageFilter.UnsharpMask(radius=1, percent=120, threshold=2))
+        # Slight contrast boost to make text pop
+        enhancer = ImageEnhance.Contrast(img)
+        img = enhancer.enhance(1.1)
+        return img
 
     try:
         if suffix in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']:
@@ -455,22 +587,26 @@ def generate_thumbnail(file_path: str, size: tuple = (200, 200)) -> bytes | None
             # Convert to RGB if necessary
             if img.mode in ('RGBA', 'P'):
                 img = img.convert('RGB')
+            # Apply sharpening for text clarity
+            img = sharpen_for_text(img)
             buffer = io.BytesIO()
-            img.save(buffer, format='JPEG', quality=85)
+            img.save(buffer, format='JPEG', quality=95)
             return buffer.getvalue()
 
         elif suffix == '.pdf' and HAS_PYMUPDF:
-            # PDF files - use first page
+            # PDF files - use first page with high resolution rendering
             doc = fitz.open(str(path))
             if len(doc) > 0:
                 page = doc[0]
-                # Render at higher resolution then scale down
-                mat = fitz.Matrix(0.5, 0.5)
+                # Render at 2.0x resolution for sharp text in thumbnails
+                mat = fitz.Matrix(2.0, 2.0)
                 pix = page.get_pixmap(matrix=mat)
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 img.thumbnail(size, Image.Resampling.LANCZOS)
+                # Apply sharpening for text clarity
+                img = sharpen_for_text(img)
                 buffer = io.BytesIO()
-                img.save(buffer, format='JPEG', quality=85)
+                img.save(buffer, format='JPEG', quality=95)
                 doc.close()
                 return buffer.getvalue()
             doc.close()
@@ -480,8 +616,10 @@ def generate_thumbnail(file_path: str, size: tuple = (200, 200)) -> bytes | None
             img.thumbnail(size, Image.Resampling.LANCZOS)
             if img.mode in ('RGBA', 'P'):
                 img = img.convert('RGB')
+            # Apply sharpening for text clarity
+            img = sharpen_for_text(img)
             buffer = io.BytesIO()
-            img.save(buffer, format='JPEG', quality=85)
+            img.save(buffer, format='JPEG', quality=95)
             return buffer.getvalue()
 
     except Exception as e:
@@ -598,6 +736,326 @@ def hand_spinner(text: str = "Loading..."):
         yield
     finally:
         placeholder.empty()
+
+
+# ==============================================================================
+# GALLERY VIEW COMPONENTS
+# ==============================================================================
+
+def render_actions_toolbar(
+    files: list,
+    current_file: Path | None,
+    analysis: dict | None,
+    selection_mode: bool,
+    selected_files: set,
+    output_dir: str,
+    inbox_dir: str
+) -> tuple[str | None, str | None, str | None]:
+    """Render the full-width actions toolbar.
+
+    Returns (action, area, category) where action is the button clicked or None.
+    """
+    areas, area_categories = get_areas_and_categories()
+
+    # Determine if actions should be enabled
+    if selection_mode:
+        has_selection = len(selected_files) > 0
+        selection_count = len(selected_files)
+    else:
+        has_selection = current_file is not None and current_file.exists()
+        selection_count = 1 if has_selection else 0
+
+    # Pre-fill area/category from analysis
+    default_area_idx = 0
+    default_cat_idx = 0
+    if analysis:
+        ai_area = analysis.get('jd_area', '')
+        if ai_area in areas:
+            default_area_idx = areas.index(ai_area)
+
+    # Actions toolbar row
+    col_area, col_cat, col_move, col_reanalyze, col_delete, col_reveal = st.columns([2, 2, 1, 1, 1, 1])
+
+    with col_area:
+        selected_area = st.selectbox(
+            "Area",
+            areas,
+            index=default_area_idx,
+            key="toolbar_area",
+            disabled=not has_selection,
+            label_visibility="collapsed"
+        )
+
+    with col_cat:
+        categories = area_categories.get(selected_area, [])
+        if analysis:
+            ai_cat = analysis.get('jd_category', '')
+            if ai_cat in categories:
+                default_cat_idx = categories.index(ai_cat)
+        selected_category = st.selectbox(
+            "Category",
+            categories,
+            index=default_cat_idx,
+            key="toolbar_category",
+            disabled=not has_selection,
+            label_visibility="collapsed"
+        )
+
+    action = None
+
+    with col_move:
+        if st.button("Move", type="primary", use_container_width=True, disabled=not has_selection):
+            action = "move"
+
+    with col_reanalyze:
+        if st.button("Reanalyze", use_container_width=True, disabled=not has_selection):
+            action = "reanalyze"
+
+    with col_delete:
+        if st.button("Delete", use_container_width=True, disabled=not has_selection):
+            action = "delete"
+
+    with col_reveal:
+        fm_name = get_file_manager_name()
+        if st.button("Reveal", use_container_width=True, disabled=not has_selection, help=f"Show in {fm_name}"):
+            action = "reveal"
+
+    return action, selected_area, selected_category
+
+
+def render_gallery_strip(
+    files: list,
+    current_idx: int,
+    selection_mode: bool,
+    selected_files: set
+) -> tuple[int | None, bool | None]:
+    """Render horizontal gallery strip with exactly 7 visible thumbnails.
+
+    Shows 7 files at a time with the current file centered when possible.
+    Left/right arrows scroll by 1 file at a time.
+
+    Returns (clicked_idx, selection_mode_changed) where:
+    - clicked_idx is the index of clicked file or None
+    - selection_mode_changed is True if toggled, False if not, None if unchanged
+    """
+    st.markdown(TAG_CHIPS_CSS, unsafe_allow_html=True)
+
+    clicked_idx = None
+    mode_changed = None
+
+    # Constants for pagination
+    VISIBLE_COUNT = 7
+
+    # Calculate the window of visible files (center current file when possible)
+    total_files = len(files)
+
+    if total_files <= VISIBLE_COUNT:
+        # Show all files if we have 7 or fewer
+        start_idx = 0
+        end_idx = total_files
+    else:
+        # Center the current file in the visible window
+        half_visible = VISIBLE_COUNT // 2  # 3 files on each side
+
+        # Calculate ideal start position (current file centered)
+        start_idx = current_idx - half_visible
+
+        # Clamp to valid range
+        if start_idx < 0:
+            start_idx = 0
+        elif start_idx > total_files - VISIBLE_COUNT:
+            start_idx = total_files - VISIBLE_COUNT
+
+        end_idx = start_idx + VISIBLE_COUNT
+
+    # Header row: Select/Done + navigation arrows + file count
+    col_select, col_prev, col_next, col_count = st.columns([1, 0.5, 0.5, 3])
+
+    with col_select:
+        if selection_mode:
+            if st.button("Done", type="primary", use_container_width=True, key="gallery_done"):
+                mode_changed = False  # Exit selection mode
+        else:
+            if st.button("Select", use_container_width=True, key="gallery_select"):
+                mode_changed = True  # Enter selection mode
+
+    with col_prev:
+        # Can scroll left if current file is not the first
+        can_scroll_left = current_idx > 0
+        if st.button("◀", use_container_width=True, disabled=not can_scroll_left, key="gallery_prev"):
+            clicked_idx = current_idx - 1
+
+    with col_next:
+        # Can scroll right if current file is not the last
+        can_scroll_right = current_idx < total_files - 1
+        if st.button("▶", use_container_width=True, disabled=not can_scroll_right, key="gallery_next"):
+            clicked_idx = current_idx + 1
+
+    with col_count:
+        if selection_mode and selected_files:
+            st.caption(f"**{len(selected_files)}** selected of {total_files} files")
+        else:
+            st.caption(f"**{current_idx + 1}** of {total_files} files")
+
+    # Selection controls in selection mode
+    if selection_mode:
+        col_all, col_none = st.columns([1, 1])
+        with col_all:
+            if st.button("Select All", use_container_width=True, key="gallery_select_all"):
+                st.session_state.selected_files = {str(f) for f, _, _ in files}
+                st.session_state.checkbox_key_version += 1
+                st.rerun()
+        with col_none:
+            if st.button("Clear", use_container_width=True, key="gallery_clear"):
+                st.session_state.selected_files = set()
+                st.session_state.checkbox_key_version += 1
+                st.rerun()
+
+    # Get the visible slice of files
+    visible_files = files[start_idx:end_idx]
+
+    # Create the gallery using exactly 7 columns (or fewer if less files)
+    if visible_files:
+        cols = st.columns(len(visible_files))
+
+        for col_idx, (file, analyzed, analysis) in enumerate(visible_files):
+            # Calculate the actual file index in the full list
+            actual_idx = start_idx + col_idx
+
+            with cols[col_idx]:
+                is_current = (actual_idx == current_idx)
+                is_selected = str(file) in selected_files
+
+                # Card container with styling
+                card_classes = "gallery-card"
+                if is_current:
+                    card_classes += " current"
+                if is_selected:
+                    card_classes += " selected"
+
+                # Thumbnail - use higher resolution for sharp display
+                thumb = generate_thumbnail(str(file), size=(400, 400))
+                if thumb:
+                    st.image(thumb, use_container_width=True)
+                else:
+                    icon = get_file_icon(file.suffix, size=48)
+                    st.markdown(
+                        f'<div class="gallery-card-thumb">{icon}</div>',
+                        unsafe_allow_html=True
+                    )
+
+                # Status indicator
+                status = "✓" if analyzed else "..."
+
+                # File button - different behavior based on mode
+                btn_type = "primary" if is_current else "secondary"
+
+                if selection_mode:
+                    # In selection mode: checkbox + click to toggle
+                    cb_key = f"gal_sel_{actual_idx}_v{st.session_state.checkbox_key_version}"
+                    checked = st.checkbox(
+                        file.name[:12],
+                        value=is_selected,
+                        key=cb_key,
+                        label_visibility="collapsed"
+                    )
+                    if checked and str(file) not in st.session_state.selected_files:
+                        st.session_state.selected_files.add(str(file))
+                        st.session_state.last_selected_file = file
+                    elif not checked and str(file) in st.session_state.selected_files:
+                        st.session_state.selected_files.discard(str(file))
+
+                    # Also make thumbnail clickable
+                    if st.button(file.name[:12], key=f"gal_btn_{actual_idx}", use_container_width=True):
+                        # Toggle selection and set as preview
+                        if str(file) in st.session_state.selected_files:
+                            st.session_state.selected_files.discard(str(file))
+                        else:
+                            st.session_state.selected_files.add(str(file))
+                        st.session_state.last_selected_file = file
+                        st.session_state.checkbox_key_version += 1
+                        st.rerun()
+                else:
+                    # In browse mode: click to select for preview
+                    if st.button(file.name[:12], key=f"gal_btn_{actual_idx}", use_container_width=True,
+                                type=btn_type if is_current else "secondary"):
+                        clicked_idx = actual_idx
+
+    return clicked_idx, mode_changed
+
+
+def render_preview(file_path: Path | None, extracted_text: str = "") -> None:
+    """Render the large preview section."""
+    if file_path is None:
+        st.info("Select a file from the gallery above to preview it")
+        return
+
+    if not file_path.exists():
+        st.error("File no longer exists. It may have been moved or deleted.")
+        return
+
+    # Preview tabs
+    tab1, tab2 = st.tabs(["Preview", "Extracted Text"])
+
+    with tab1:
+        suffix = file_path.suffix.lower()
+        if suffix == '.pdf':
+            display_pdf(file_path)
+        elif suffix in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif']:
+            display_image(file_path)
+        else:
+            st.info(f"Preview not available for {suffix} files. Check 'Extracted Text' tab.")
+
+    with tab2:
+        if not extracted_text:
+            st.warning("No extracted text available. Click 'Reanalyze' to extract text.")
+        else:
+            st.text_area("Extracted Text", extracted_text, height=400, disabled=True, key="preview_text")
+
+
+def render_classification(analysis: dict | None, file_path: Path | None) -> None:
+    """Render classification/AI analysis section below preview."""
+    if not analysis:
+        if file_path:
+            st.warning("No analysis available. Click 'Reanalyze' to process this file.")
+        return
+
+    # Compact metadata row
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        issuer = analysis.get('issuer', 'Unknown') or 'Unknown'
+        st.markdown(f"**Issuer:** {issuer}")
+
+    with col2:
+        doc_type = analysis.get('document_type', 'Unknown') or 'Unknown'
+        st.markdown(f"**Type:** {doc_type}")
+
+    with col3:
+        date = analysis.get('date_mentioned', 'N/A') or 'N/A'
+        st.markdown(f"**Date:** {date}")
+
+    with col4:
+        confidence = analysis.get('confidence', 'Unknown') or 'Unknown'
+        st.markdown(f"**Confidence:** {confidence}")
+
+    # AI suggested category
+    ai_area = analysis.get('jd_area', '')
+    ai_cat = analysis.get('jd_category', '')
+    if ai_area and ai_cat:
+        st.markdown(f"**Suggested:** {ai_area} → {ai_cat}")
+
+    # Tags
+    tags = analysis.get('tags', [])
+    if tags:
+        st.markdown(render_tag_chips(tags), unsafe_allow_html=True)
+
+    # Summary (collapsible)
+    summary = analysis.get('summary', '')
+    if summary:
+        with st.expander("Summary", expanded=False):
+            st.write(summary)
+
 
 # Initialize session state
 if "current_file" not in st.session_state:
@@ -1210,583 +1668,270 @@ def main():
             st.caption(f"Inbox: `{inbox_dir}`")
         return
 
-    # Inject CSS for tag chips and grid
+    # Inject CSS for tag chips and gallery
     st.markdown(TAG_CHIPS_CSS, unsafe_allow_html=True)
 
-    # Main layout
-    col1, col2 = st.columns([1, 2])
+    # Breadcrumb navigation for browse mode
+    if st.session_state.browse_mode:
+        current_folder = st.session_state.get("browse_folder_input", output_dir)
+        render_breadcrumb(Path(current_folder), Path(output_dir))
 
-    with col1:
-        # Header with view toggle and Select/Done button (iOS-style)
-        col_header, col_select, col_view = st.columns([2, 1, 1])
-        with col_header:
-            icon_subheader("inbox", f"Files ({len(files)})")
-        with col_select:
-            # iOS-style Select/Done toggle
-            if st.session_state.selection_mode:
-                if st.button("Done", use_container_width=True, type="primary"):
-                    st.session_state.selection_mode = False
-                    st.session_state.selected_files = set()
-                    st.session_state.checkbox_key_version += 1
-                    st.session_state.last_selected_file = None  # Clear last selected file when exiting select mode
-                    st.rerun()
-            else:
-                if st.button("Select", use_container_width=True):
-                    st.session_state.selection_mode = True
-                    st.session_state.current_file = None  # Clear preview when entering select mode
-                    st.session_state.last_selected_file = None  # Clear last selected file when entering select mode
-                    st.rerun()
-        with col_view:
-            view_mode = st.radio(
-                "View",
-                ["List", "Grid"],
-                index=0 if st.session_state.view_mode == "list" else 1,
-                horizontal=True,
-                label_visibility="collapsed",
-                key="view_toggle"
-            )
-            st.session_state.view_mode = "list" if view_mode == "List" else "grid"
+    # Get current file and analysis for toolbar
+    current_file = st.session_state.current_file
+    current_idx = st.session_state.current_file_idx
 
-        # Breadcrumb navigation for browse mode
-        if st.session_state.browse_mode:
-            current_folder = st.session_state.get("browse_folder_input", output_dir)
-            render_breadcrumb(Path(current_folder), Path(output_dir))
+    # Ensure current_idx is valid
+    if current_idx >= len(files):
+        current_idx = 0
+        st.session_state.current_file_idx = 0
 
-        # Selection controls - only shown in selection mode (iOS-style)
+    # Load analysis for current file (for toolbar pre-fill)
+    current_analysis = None
+    if current_file and current_file.exists():
+        current_analysis = load_analysis(str(current_file))
+    elif st.session_state.selection_mode and st.session_state.last_selected_file:
+        # In selection mode, use last selected file for preview
+        if st.session_state.last_selected_file.exists():
+            current_analysis = load_analysis(str(st.session_state.last_selected_file))
+
+    # ========== ACTIONS TOOLBAR (full width) ==========
+    action, selected_area, selected_category = render_actions_toolbar(
+        files=files,
+        current_file=current_file if not st.session_state.selection_mode else st.session_state.last_selected_file,
+        analysis=current_analysis,
+        selection_mode=st.session_state.selection_mode,
+        selected_files=st.session_state.selected_files,
+        output_dir=output_dir,
+        inbox_dir=inbox_dir
+    )
+
+    # Handle toolbar actions
+    if action == "move":
         if st.session_state.selection_mode:
-            col_sel1, col_sel2 = st.columns(2)
-            with col_sel1:
-                if st.button("Select All", use_container_width=True):
-                    st.session_state.selected_files = {str(f) for f, _, _ in files}
-                    st.session_state.checkbox_key_version += 1
-                    st.rerun()
-            with col_sel2:
-                if st.button("Clear", use_container_width=True):
-                    st.session_state.selected_files = set()
-                    st.session_state.checkbox_key_version += 1
-                    st.rerun()
+            # Bulk move
+            moved = 0
+            for file_str in list(st.session_state.selected_files):
+                file_path = Path(file_str)
+                if file_path.exists():
+                    analysis = load_analysis(str(file_path))
+                    extracted_text = analysis.get("extracted_text", "") if analysis else ""
 
-            # Show selected count
-            if st.session_state.selected_files:
-                st.caption(f"Selected: {len(st.session_state.selected_files)} files")
+                    if not extracted_text:
+                        result = extract_text_with_docling(str(file_path))
+                        if not result["success"] or not result["text"].strip():
+                            result = extract_text_fallback(str(file_path))
+                        if result["success"]:
+                            extracted_text = result["text"]
 
-        # File display - List or Grid view
-        if st.session_state.view_mode == "grid":
-            # Grid view with thumbnails
-            cols_per_row = 3
-            for row_start in range(0, len(files), cols_per_row):
-                row_files = files[row_start:row_start + cols_per_row]
-                cols = st.columns(cols_per_row)
+                    final_analysis = {
+                        "jd_area": selected_area,
+                        "jd_category": selected_category,
+                        "issuer": analysis.get("issuer") if analysis else None,
+                        "document_type": analysis.get("document_type") if analysis else None,
+                        "date_mentioned": analysis.get("date_mentioned") if analysis else None,
+                        "subject_person": None,
+                        "tags": analysis.get("tags", []) if analysis else [],
+                        "confidence": "bulk",
+                        "summary": analysis.get("summary", "") if analysis else "",
+                        "entities": analysis.get("entities", []) if analysis else [],
+                    }
 
-                for col_idx, (file, analyzed, analysis) in enumerate(row_files):
-                    with cols[col_idx]:
-                        i = row_start + col_idx
-                        is_selected = str(file) in st.session_state.selected_files
+                    try:
+                        file_hash = get_file_hash(str(file_path))
+                        original_name = file_path.name
+                        dest_path = organize_file(str(file_path), output_dir, final_analysis, extracted_text)
+                        delete_analysis_file(file_path)
+                        processed = load_processed_files(output_dir)
+                        mark_file_processed(file_hash, original_name, dest_path, processed)
+                        save_processed_files(output_dir, processed)
+                        moved += 1
+                    except Exception as e:
+                        st.error(f"Failed to move {file_path.name}: {e}")
 
-                        # Selection checkbox - only shown in selection mode (iOS-style)
-                        if st.session_state.selection_mode:
-                            cb_key = f"sel_{i}_v{st.session_state.checkbox_key_version}"
-                            if st.checkbox("Select", value=is_selected, key=cb_key, label_visibility="collapsed"):
-                                st.session_state.selected_files.add(str(file))
-                            else:
-                                st.session_state.selected_files.discard(str(file))
-
-                        # Thumbnail
-                        thumb = generate_thumbnail(str(file))
-                        if thumb:
-                            st.image(thumb, use_container_width=True)
-                        else:
-                            # Show file icon placeholder
-                            icon = get_file_icon(file.suffix, size=40)
-                            st.markdown(
-                                f'<div style="height:80px;background:#f0f0f0;display:flex;align-items:center;'
-                                f'justify-content:center;border-radius:4px;">{icon}</div>',
-                                unsafe_allow_html=True
-                            )
-
-                        # File info - behavior depends on mode
-                        status = "[OK]" if analyzed else "[...]"
-                        btn_label = f"{status} {file.name[:18]}{'...' if len(file.name) > 18 else ''}"
-                        if st.button(btn_label, key=f"file_{i}", use_container_width=True):
-                            if st.session_state.selection_mode:
-                                # In selection mode: toggle selection AND show preview
-                                if str(file) in st.session_state.selected_files:
-                                    st.session_state.selected_files.discard(str(file))
-                                else:
-                                    st.session_state.selected_files.add(str(file))
-                                st.session_state.last_selected_file = file  # Track for preview
-                                st.session_state.checkbox_key_version += 1
-                            else:
-                                # In browse mode: open preview
-                                st.session_state.current_file = file
-                                st.session_state.current_file_idx = i
-                            st.rerun()
-
-                        # Show tags if available
-                        if analysis and analysis.get("tags"):
-                            st.markdown(render_tag_chips(analysis.get("tags", [])[:3], small=True),
-                                       unsafe_allow_html=True)
-
+            st.session_state.selected_files = set()
+            st.session_state.processed_count += moved
+            st.success(f"Moved {moved} files to {selected_area}/{selected_category}")
+            st.rerun()
         else:
-            # List view
-            for i, (file, analyzed, analysis) in enumerate(files):
-                # In selection mode: show checkbox; in browse mode: no checkbox
-                if st.session_state.selection_mode:
-                    col_cb, col_btn = st.columns([0.1, 0.9])
-                    with col_cb:
-                        is_selected = str(file) in st.session_state.selected_files
-                        cb_key = f"sel_{i}_v{st.session_state.checkbox_key_version}"
-                        if st.checkbox("Select file", value=is_selected, key=cb_key, label_visibility="collapsed"):
-                            st.session_state.selected_files.add(str(file))
-                        else:
-                            st.session_state.selected_files.discard(str(file))
-                    btn_container = col_btn
-                else:
-                    btn_container = st.container()
+            # Single file move
+            if current_file and current_file.exists():
+                extracted_text = current_analysis.get("extracted_text", "") if current_analysis else ""
 
-                with btn_container:
-                    status = "[OK]" if analyzed else "[...]"
-                    # Show issuer/type preview if available
-                    preview = ""
-                    if analysis:
-                        issuer = analysis.get("issuer", "")
-                        doc_type = analysis.get("document_type", "")
-                        if issuer or doc_type:
-                            preview = f" ({issuer or ''} - {doc_type or ''})"[:30]
-
-                    btn_label = f"{status} {file.name[:25]}{'...' if len(file.name) > 25 else ''}{preview}"
-                    if st.button(btn_label, key=f"file_{i}", use_container_width=True):
-                        if st.session_state.selection_mode:
-                            # In selection mode: toggle selection AND show preview
-                            if str(file) in st.session_state.selected_files:
-                                st.session_state.selected_files.discard(str(file))
-                            else:
-                                st.session_state.selected_files.add(str(file))
-                            st.session_state.last_selected_file = file  # Track for preview
-                            st.session_state.checkbox_key_version += 1
-                        else:
-                            # In browse mode: open preview
-                            st.session_state.current_file = file
-                            st.session_state.current_file_idx = i
-                        st.rerun()
-
-                    # Show tag chips inline for list view
-                    if analysis and analysis.get("tags"):
-                        st.markdown(render_tag_chips(analysis.get("tags", [])[:4], small=True),
-                                   unsafe_allow_html=True)
-
-    with col2:
-        # Bulk actions - shown in selection mode (iOS-style)
-        if st.session_state.selection_mode:
-            selected_count = len(st.session_state.selected_files)
-            has_selection = selected_count > 0
-
-            if has_selection:
-                icon_subheader("layers", f"Actions ({selected_count} selected)")
-            else:
-                icon_subheader("layers", "Actions")
-                st.caption("Tap files to select them")
-
-            areas, area_categories = get_areas_and_categories()
-
-            col_bulk1, col_bulk2 = st.columns(2)
-            with col_bulk1:
-                bulk_area = st.selectbox("Move to Area", areas, key="bulk_area", disabled=not has_selection)
-            with col_bulk2:
-                bulk_categories = area_categories.get(bulk_area, [])
-                bulk_category = st.selectbox("Category", bulk_categories, key="bulk_cat", disabled=not has_selection)
-
-            col_act1, col_act2, col_act3, col_act4 = st.columns(4)
-
-            with col_act1:
-                if st.button("Move", type="primary", width="stretch", disabled=not has_selection):
-                    moved = 0
-                    for file_str in list(st.session_state.selected_files):
-                        file_path = Path(file_str)
-                        if file_path.exists():
-                            analysis = load_analysis(str(file_path))
-                            extracted_text = analysis.get("extracted_text", "") if analysis else ""
-
-                            # Extract text if not already done
-                            if not extracted_text:
-                                result = extract_text_with_docling(str(file_path))
-                                if not result["success"] or not result["text"].strip():
-                                    result = extract_text_fallback(str(file_path))
-                                if result["success"]:
-                                    extracted_text = result["text"]
-
-                            final_analysis = {
-                                "jd_area": bulk_area,
-                                "jd_category": bulk_category,
-                                "issuer": analysis.get("issuer") if analysis else None,
-                                "document_type": analysis.get("document_type") if analysis else None,
-                                "date_mentioned": analysis.get("date_mentioned") if analysis else None,
-                                "subject_person": None,
-                                "tags": analysis.get("tags", []) if analysis else [],
-                                "confidence": "bulk",
-                                "summary": analysis.get("summary", "") if analysis else "",
-                                "entities": analysis.get("entities", []) if analysis else [],
-                            }
-
-                            try:
-                                file_hash = get_file_hash(str(file_path))
-                                original_name = file_path.name
-
-                                dest_path = organize_file(str(file_path), output_dir, final_analysis, extracted_text)
-                                delete_analysis_file(file_path)
-
-                                processed = load_processed_files(output_dir)
-                                mark_file_processed(file_hash, original_name, dest_path, processed)
-                                save_processed_files(output_dir, processed)
-
-                                moved += 1
-                            except Exception as e:
-                                st.error(f"Failed to move {file_path.name}: {e}")
-
-                    st.session_state.selected_files = set()
-                    st.session_state.processed_count += moved
-                    st.success(f"Moved {moved} files to {bulk_area}/{bulk_category}")
-                    st.rerun()
-
-            with col_act2:
-                if st.button("Reanalyze", width="stretch", disabled=not has_selection):
-                    files_to_reanalyze = [f for f in st.session_state.selected_files if Path(f).exists()]
-                    total = len(files_to_reanalyze)
-
-                    if total > 0:
-                        progress_container = st.empty()
-                        processed_count = 0
-                        skipped_count = 0
-
-                        def render_progress(container, file_path, idx, total, step):
-                            remaining = total - idx
-                            with container.container():
-                                st.markdown(HAND_LOADING_CSS, unsafe_allow_html=True)
-                                progress_html = f"""
-                                <div class="hand-loading-container">
-                                    <div class="loading">
-                                        <div class="finger finger-1"><div class="finger-item"><span></span><i></i></div></div>
-                                        <div class="finger finger-2"><div class="finger-item"><span></span><i></i></div></div>
-                                        <div class="finger finger-3"><div class="finger-item"><span></span><i></i></div></div>
-                                        <div class="finger finger-4"><div class="finger-item"><span></span><i></i></div></div>
-                                        <div class="last-finger"><div class="last-finger-item"><i></i></div></div>
-                                    </div>
-                                    <div class="hand-loading-text">
-                                        <strong>Processing:</strong> {file_path.name[:40]}{'...' if len(file_path.name) > 40 else ''}<br>
-                                        <strong>Step:</strong> {step}<br>
-                                        <strong>Progress:</strong> {idx + 1} / {total} ({remaining} remaining)
-                                    </div>
-                                </div>
-                                """
-                                st.markdown(progress_html, unsafe_allow_html=True)
-
-                        def make_progress_callback(container, file_path, idx, total):
-                            def callback(step: str):
-                                render_progress(container, file_path, idx, total, step)
-                            return callback
-
-                        error_count = 0
-                        for idx, file_str in enumerate(files_to_reanalyze):
-                            file_path = Path(file_str)
-
-                            # Show initial progress for this file
-                            render_progress(progress_container, file_path, idx, total, "Starting...")
-
-                            # Create callback with current values captured
-                            progress_callback = make_progress_callback(progress_container, file_path, idx, total)
-
-                            try:
-                                if reanalyze_file(file_path, progress_callback=progress_callback):
-                                    processed_count += 1
-                                else:
-                                    skipped_count += 1
-                            except Exception as e:
-                                print(f"  ❌ Error reanalyzing {file_path.name}: {e}")
-                                error_count += 1
-
-                        progress_container.empty()
-
-                    msg_parts = [f"Processed {processed_count} files"]
-                    if skipped_count > 0:
-                        msg_parts.append(f"skipped {skipped_count} (already had text)")
-                    if error_count > 0:
-                        msg_parts.append(f"{error_count} errors")
-                    st.success(", ".join(msg_parts))
-                    st.rerun()
-
-            with col_act3:
-                if st.button("Delete", width="stretch", disabled=not has_selection):
-                    if st.session_state.get('confirm_bulk_delete'):
-                        deleted = 0
-                        for file_str in list(st.session_state.selected_files):
-                            file_path = Path(file_str)
-                            if file_path.exists():
-                                delete_analysis_file(file_path)
-                                file_path.unlink()
-                                deleted += 1
-                        st.session_state.selected_files = set()
-                        st.session_state.confirm_bulk_delete = False
-                        st.success(f"Deleted {deleted} files")
-                        st.rerun()
-                    else:
-                        st.session_state.confirm_bulk_delete = True
-                        st.warning("Click Delete again to confirm")
-
-            with col_act4:
-                fm_name = get_file_manager_name()
-                if st.button(f"Reveal", key="bulk_reveal", use_container_width=True, disabled=not has_selection, help=f"Reveal in {fm_name}"):
-                    for file_str in st.session_state.selected_files:
-                        file_path = Path(file_str)
-                        if file_path.exists():
-                            reveal_in_file_manager(file_path)
-                            break  # Only reveal first selected file
-
-            st.divider()
-
-            # Preview of last selected file in selection mode
-            if st.session_state.last_selected_file is not None:
-                preview_file = st.session_state.last_selected_file
-                if preview_file.exists():
-                    icon_subheader("eye", f"Preview: {preview_file.name[:30]}{'...' if len(preview_file.name) > 30 else ''}")
-
-                    # Load analysis for preview
-                    preview_analysis = load_analysis(str(preview_file))
-                    preview_extracted_text = preview_analysis.get("extracted_text", "") if preview_analysis else ""
-
-                    # Preview tabs - same as browse mode
-                    tab1, tab2 = st.tabs(["Preview", "Extracted Text"])
-
-                    with tab1:
-                        suffix = preview_file.suffix.lower()
-                        if suffix == '.pdf':
-                            display_pdf(preview_file)
-                        elif suffix in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp']:
-                            display_image(preview_file)
-                        else:
-                            st.info(f"Preview not available for {suffix} files. Check 'Extracted Text' tab.")
-
-                    with tab2:
-                        if not preview_extracted_text:
-                            st.warning("No extracted text available.")
-                        else:
-                            st.text_area("Extracted Text", preview_extracted_text, height=400, disabled=True, key="select_mode_text")
-                else:
-                    st.session_state.last_selected_file = None
-                    st.info("Selected file no longer exists.")
-            else:
-                st.info("Tap a file to preview it while selecting.")
-
-        # Single file view - only shown in browse mode (not selection mode)
-        if not st.session_state.selection_mode:
-            # Check if current file exists
-            file_path = st.session_state.current_file
-            has_file = file_path is not None and file_path.exists()
-
-            if file_path is not None and not file_path.exists():
-                st.error("File no longer exists. It may have been processed.")
-                st.session_state.current_file = None
-                file_path = None
-                has_file = False
-
-            # Actions section - always shown (disabled when no file selected)
-            icon_subheader("layers", "Actions")
-
-            areas, area_categories = get_areas_and_categories()
-
-            # Pre-fill from analysis if file is selected
-            default_area_idx = 0
-            analysis = None
-            if has_file:
-                analysis = load_analysis(str(file_path))
-                if analysis:
-                    ai_area = analysis.get('jd_area', '')
-                    if ai_area in areas:
-                        default_area_idx = areas.index(ai_area)
-
-            col_bulk1, col_bulk2 = st.columns(2)
-            with col_bulk1:
-                display_area = st.selectbox("Move to Area", areas, index=default_area_idx, key="display_bulk_area", disabled=not has_file)
-            with col_bulk2:
-                display_categories = area_categories.get(display_area, [])
-                # Pre-fill category from analysis
-                default_cat_idx = 0
-                if has_file and analysis:
-                    ai_cat = analysis.get('jd_category', '')
-                    if ai_cat in display_categories:
-                        default_cat_idx = display_categories.index(ai_cat)
-                display_category = st.selectbox("Category", display_categories, index=default_cat_idx, key="display_bulk_cat", disabled=not has_file)
-
-            col_act1, col_act2, col_act3, col_act4 = st.columns(4)
-
-            with col_act1:
-                if st.button("Move", type="primary", use_container_width=True, disabled=not has_file, key="display_move"):
-                    if has_file:
-                        # analysis is already loaded above for pre-filling dropdowns
-                        extracted_text = analysis.get("extracted_text", "") if analysis else ""
-
-                        # Extract text if not already done
-                        if not extracted_text:
-                            result = extract_text_with_docling(str(file_path))
-                            if not result["success"] or not result["text"].strip():
-                                result = extract_text_fallback(str(file_path))
-                            if result["success"]:
-                                extracted_text = result["text"]
-
-                        final_analysis = {
-                            "jd_area": display_area,
-                            "jd_category": display_category,
-                            "issuer": analysis.get("issuer") if analysis else None,
-                            "document_type": analysis.get("document_type") if analysis else None,
-                            "date_mentioned": analysis.get("date_mentioned") if analysis else None,
-                            "subject_person": None,
-                            "tags": analysis.get("tags", []) if analysis else [],
-                            "confidence": "manual",
-                            "summary": analysis.get("summary", "") if analysis else "",
-                            "entities": analysis.get("entities", []) if analysis else [],
-                        }
-
-                        try:
-                            file_hash = get_file_hash(str(file_path))
-                            original_name = file_path.name
-
-                            dest_path = organize_file(str(file_path), output_dir, final_analysis, extracted_text)
-                            delete_analysis_file(file_path)
-
-                            processed = load_processed_files(output_dir)
-                            mark_file_processed(file_hash, original_name, dest_path, processed)
-                            save_processed_files(output_dir, processed)
-
-                            st.session_state.processed_count += 1
-                            st.session_state.current_file = None
-                            st.success(f"Moved to {display_area}/{display_category}")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Failed to move: {e}")
-
-            with col_act2:
-                if st.button("Reanalyze", use_container_width=True, disabled=not has_file, key="display_reanalyze"):
-                    if has_file:
-                        with hand_spinner("Re-analyzing..."):
-                            reanalyze_file(file_path, skip_if_has_text=False)
-                        st.rerun()
-
-            with col_act3:
-                if st.button("Delete", use_container_width=True, disabled=not has_file, key="display_delete"):
-                    if has_file:
-                        if st.session_state.get('confirm_display_delete'):
-                            delete_analysis_file(file_path)
-                            file_path.unlink()
-                            st.session_state.current_file = None
-                            st.session_state.confirm_display_delete = False
-                            st.rerun()
-                        else:
-                            st.session_state.confirm_display_delete = True
-                            st.warning("Click Delete again to confirm")
-
-            with col_act4:
-                fm_name = get_file_manager_name()
-                if st.button("Reveal", use_container_width=True, disabled=not has_file, key="display_reveal", help=f"Reveal in {fm_name}"):
-                    if has_file:
-                        reveal_in_file_manager(file_path)
-
-            st.divider()
-
-            # Show help message when no file selected
-            if not has_file:
-                st.info("Tap a file to preview and classify it")
-                st.markdown("""
-                **Workflow:**
-                1. Files marked [OK] have been analyzed (AI suggestion ready)
-                2. Files marked [...] need analysis - click "Analyze All New Files"
-                3. Tap a file to preview, review the suggestion, adjust if needed
-                4. Use the Actions toolbar above to Move, Reanalyze, or Delete
-
-                **Selection Mode:**
-                - Click "Select" to enter selection mode for bulk operations
-                """)
-                return
-
-            # Navigation buttons
-            col_nav1, col_nav2, col_nav3 = st.columns([1, 3, 1])
-            with col_nav1:
-                if st.button("Prev", width="stretch"):
-                    if st.session_state.current_file_idx > 0:
-                        st.session_state.current_file_idx -= 1
-                        st.session_state.current_file = files[st.session_state.current_file_idx][0]
-                        st.rerun()
-            with col_nav2:
-                st.markdown(f"**{st.session_state.current_file_idx + 1} / {len(files)}**",
-                           unsafe_allow_html=True)
-            with col_nav3:
-                if st.button("Next", width="stretch"):
-                    if st.session_state.current_file_idx < len(files) - 1:
-                        st.session_state.current_file_idx += 1
-                        st.session_state.current_file = files[st.session_state.current_file_idx][0]
-                        st.rerun()
-
-            icon_subheader("file-scan", file_path.name)
-
-            # Load existing analysis if available (from .meta.json)
-            analysis = load_analysis(str(file_path))
-            extracted_text = analysis.get("extracted_text", "") if analysis else ""
-
-            # Preview tabs
-            tab1, tab2 = st.tabs(["Preview", "Extracted Text"])
-
-            with tab1:
-                suffix = file_path.suffix.lower()
-                if suffix == '.pdf':
-                    display_pdf(file_path)
-                elif suffix in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp']:
-                    display_image(file_path)
-                else:
-                    st.info(f"Preview not available for {suffix} files. Check 'Extracted Text' tab.")
-
-            with tab2:
                 if not extracted_text:
-                    st.warning("No extracted text available. Click 'Analyze This File' to extract.")
-                    if st.button("Analyze This File"):
-                        with hand_spinner("Extracting and analyzing..."):
-                            preprocess_file(str(file_path))
-                        st.rerun()
-                else:
-                    st.text_area("Extracted Text", extracted_text, height=400, disabled=True)
+                    result = extract_text_with_docling(str(current_file))
+                    if not result["success"] or not result["text"].strip():
+                        result = extract_text_fallback(str(current_file))
+                    if result["success"]:
+                        extracted_text = result["text"]
 
-            st.divider()
+                final_analysis = {
+                    "jd_area": selected_area,
+                    "jd_category": selected_category,
+                    "issuer": current_analysis.get("issuer") if current_analysis else None,
+                    "document_type": current_analysis.get("document_type") if current_analysis else None,
+                    "date_mentioned": current_analysis.get("date_mentioned") if current_analysis else None,
+                    "subject_person": None,
+                    "tags": current_analysis.get("tags", []) if current_analysis else [],
+                    "confidence": "manual",
+                    "summary": current_analysis.get("summary", "") if current_analysis else "",
+                    "entities": current_analysis.get("entities", []) if current_analysis else [],
+                }
 
-            # Classification section
-            icon_subheader("tag", "Classification")
-
-            # Show analysis status
-            if analysis:
-                with st.expander("AI Analysis", expanded=True):
-                    col_s1, col_s2 = st.columns(2)
-                    with col_s1:
-                        st.write(f"**Suggested Area:** {analysis.get('jd_area', 'Unknown')}")
-                        st.write(f"**Suggested Category:** {analysis.get('jd_category', 'Unknown')}")
-                        st.write(f"**Confidence:** {analysis.get('confidence', 'Unknown')}")
-                    with col_s2:
-                        st.write(f"**Issuer:** {analysis.get('issuer', 'Unknown')}")
-                        st.write(f"**Document Type:** {analysis.get('document_type', 'Unknown')}")
-                        st.write(f"**Date:** {analysis.get('date_mentioned', 'Not found')}")
-                    st.write(f"**Summary:** {analysis.get('summary', 'No summary')}")
-                    if analysis.get('tags'):
-                        st.write("**Tags:**")
-                        st.markdown(render_tag_chips(analysis.get('tags', [])), unsafe_allow_html=True)
-
-                    # Re-analyze button - force reanalysis since user explicitly requested
-                    if st.button("Re-analyze with AI"):
-                        with hand_spinner("Re-analyzing..."):
-                            reanalyze_file(file_path, skip_if_has_text=False)
-                        st.rerun()
-            else:
-                st.warning("This file hasn't been analyzed yet.")
-                if st.button("Analyze Now", type="primary"):
-                    with hand_spinner("Analyzing..."):
-                        preprocess_file(str(file_path))
+                try:
+                    file_hash = get_file_hash(str(current_file))
+                    original_name = current_file.name
+                    dest_path = organize_file(str(current_file), output_dir, final_analysis, extracted_text)
+                    delete_analysis_file(current_file)
+                    processed = load_processed_files(output_dir)
+                    mark_file_processed(file_hash, original_name, dest_path, processed)
+                    save_processed_files(output_dir, processed)
+                    st.session_state.processed_count += 1
+                    st.session_state.current_file = None
+                    st.success(f"Moved to {selected_area}/{selected_category}")
                     st.rerun()
-                return
+                except Exception as e:
+                    st.error(f"Failed to move: {e}")
 
+    elif action == "reanalyze":
+        if st.session_state.selection_mode:
+            # Bulk reanalyze
+            files_to_reanalyze = [f for f in st.session_state.selected_files if Path(f).exists()]
+            total = len(files_to_reanalyze)
+            if total > 0:
+                progress_container = st.empty()
+                processed_count = 0
+                skipped_count = 0
+                error_count = 0
+
+                for idx, file_str in enumerate(files_to_reanalyze):
+                    file_path = Path(file_str)
+                    with progress_container.container():
+                        st.info(f"Processing {idx + 1}/{total}: {file_path.name}")
+                    try:
+                        if reanalyze_file(file_path, skip_if_has_text=False):
+                            processed_count += 1
+                        else:
+                            skipped_count += 1
+                    except Exception as e:
+                        error_count += 1
+
+                progress_container.empty()
+                msg_parts = [f"Processed {processed_count} files"]
+                if skipped_count > 0:
+                    msg_parts.append(f"skipped {skipped_count}")
+                if error_count > 0:
+                    msg_parts.append(f"{error_count} errors")
+                st.success(", ".join(msg_parts))
+                st.rerun()
+        else:
+            # Single file reanalyze
+            if current_file and current_file.exists():
+                with hand_spinner("Re-analyzing..."):
+                    reanalyze_file(current_file, skip_if_has_text=False)
+                st.rerun()
+
+    elif action == "delete":
+        if st.session_state.selection_mode:
+            if st.session_state.get('confirm_bulk_delete'):
+                deleted = 0
+                for file_str in list(st.session_state.selected_files):
+                    file_path = Path(file_str)
+                    if file_path.exists():
+                        delete_analysis_file(file_path)
+                        file_path.unlink()
+                        deleted += 1
+                st.session_state.selected_files = set()
+                st.session_state.confirm_bulk_delete = False
+                st.success(f"Deleted {deleted} files")
+                st.rerun()
+            else:
+                st.session_state.confirm_bulk_delete = True
+                st.warning("Click Delete again to confirm")
+        else:
+            if current_file and current_file.exists():
+                if st.session_state.get('confirm_display_delete'):
+                    delete_analysis_file(current_file)
+                    current_file.unlink()
+                    st.session_state.current_file = None
+                    st.session_state.confirm_display_delete = False
+                    st.rerun()
+                else:
+                    st.session_state.confirm_display_delete = True
+                    st.warning("Click Delete again to confirm")
+
+    elif action == "reveal":
+        if st.session_state.selection_mode:
+            for file_str in st.session_state.selected_files:
+                file_path = Path(file_str)
+                if file_path.exists():
+                    reveal_in_file_manager(file_path)
+                    break
+        else:
+            if current_file and current_file.exists():
+                reveal_in_file_manager(current_file)
+
+    # ========== GALLERY STRIP (horizontal scrolling thumbnails) ==========
+    clicked_idx, mode_changed = render_gallery_strip(
+        files=files,
+        current_idx=current_idx,
+        selection_mode=st.session_state.selection_mode,
+        selected_files=st.session_state.selected_files
+    )
+
+    # Handle gallery interactions
+    if mode_changed is not None:
+        if mode_changed:
+            # Entering selection mode
+            st.session_state.selection_mode = True
+            st.session_state.current_file = None
+            st.session_state.last_selected_file = None
+        else:
+            # Exiting selection mode
+            st.session_state.selection_mode = False
+            st.session_state.selected_files = set()
+            st.session_state.checkbox_key_version += 1
+            st.session_state.last_selected_file = None
+        st.rerun()
+
+    if clicked_idx is not None:
+        st.session_state.current_file_idx = clicked_idx
+        st.session_state.current_file = files[clicked_idx][0]
+        st.rerun()
+
+    # ========== PREVIEW SECTION (full width) ==========
+    st.divider()
+
+    # Determine which file to preview
+    if st.session_state.selection_mode:
+        preview_file = st.session_state.last_selected_file
+    else:
+        preview_file = st.session_state.current_file
+
+    # Get analysis and text for preview
+    preview_analysis = None
+    preview_text = ""
+    if preview_file and preview_file.exists():
+        preview_analysis = load_analysis(str(preview_file))
+        preview_text = preview_analysis.get("extracted_text", "") if preview_analysis else ""
+
+    # Show file name if we have a file
+    if preview_file and preview_file.exists():
+        icon_subheader("file-scan", preview_file.name)
+
+    render_preview(preview_file, preview_text)
+
+    # ========== CLASSIFICATION SECTION (below preview) ==========
+    if preview_file and preview_file.exists():
+        st.divider()
+        icon_subheader("tag", "Classification")
+        render_classification(preview_analysis, preview_file)
+
+        # Analyze button if no analysis
+        if not preview_analysis:
+            if st.button("Analyze Now", type="primary"):
+                with hand_spinner("Analyzing..."):
+                    preprocess_file(str(preview_file))
+                st.rerun()
 
 
 def render_settings_page():

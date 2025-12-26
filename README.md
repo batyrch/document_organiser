@@ -125,49 +125,76 @@ python document_organizer.py --rebuild-index
 
 Launch the UI with `streamlit run ui.py`
 
+### Gallery View Layout (macOS Finder-inspired)
+
+The UI uses a vertical stacked layout inspired by macOS Finder's Gallery View:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  [Search bar]                                                     │
+├──────────────────────────────────────────────────────────────────┤
+│  Actions: [Area ▼] [Category ▼] [Move] [Reanalyze] [Delete]      │
+├──────────────────────────────────────────────────────────────────┤
+│  [Select/Done] ◀ [thumb1] [thumb2] [THUMB3*] [thumb4] ▶          │
+├──────────────────────────────────────────────────────────────────┤
+│              LARGE PREVIEW (full width)                          │
+├──────────────────────────────────────────────────────────────────┤
+│  Classification: Issuer | Type | Date | Tags | Summary           │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+1. **Actions Toolbar** - Area/Category dropdowns + Move/Reanalyze/Delete/Reveal buttons
+2. **Gallery Strip** - Horizontal scrolling thumbnails with ◀/▶ navigation
+3. **Preview Section** - Large document preview (PDF/image/text)
+4. **Classification Section** - Compact AI analysis display
+
 ### File Source Modes
 - **Inbox Mode**: Scan default inbox folder for new documents
 - **Browse Mode**: Scan any folder to view/manage existing documents
   - Toggle between modes in sidebar
   - Custom folder path with recursive option
   - **Navigation bar**: ◀ Back | ▶ Forward | ▲ Up | ▼ Down buttons
-    - History tracking (up to 50 locations)
-    - Quick parent/child folder navigation
   - **Subfolder dropdown**: Navigate into subdirectories quickly
   - **Breadcrumb navigation**: Shows current path hierarchy
 
 ### iOS-Style Selection (like iOS Files app)
 The UI uses a two-mode selection pattern inspired by iOS:
 
-- **Browse Mode** (default): Tap a file to preview it
-  - Shows document preview, AI analysis, and classification form
-  - Single-file actions: Process & File, Skip, Previous, Delete, Reveal
+- **Browse Mode** (default): Click thumbnail in gallery → shows preview below
+  - Actions toolbar always visible (disabled until file selected)
+  - Single-file actions apply to currently previewed file
 
 - **Selection Mode**: Tap "Select" button to enter
-  - Checkboxes appear next to each file
-  - Tap files to select/deselect them
-  - Toolbar Actions: Move, Reanalyze, Delete, Reveal
+  - Checkboxes appear on gallery thumbnails
+  - Click to toggle selection AND preview last clicked file
+  - Select All / Clear buttons available
+  - Toolbar Actions apply to all selected files
   - Tap "Done" to exit and clear selection
 
-### Document Management
-- **Grid/List view toggle**: Switch between thumbnail grid and list view
-- File list with metadata status ([OK] has metadata, [...] pending)
-- **Colored tag chips**: Tags displayed with category-based colors
-- PDF and image preview with thumbnails
-- Extracted text display
-- AI analysis panel with all metadata fields
+### Gallery Strip Features
+- Horizontal scrolling thumbnail strip (up to 50 files visible)
+- Current file highlighted with blue border
+- Selected files highlighted in selection mode
+- ◀/▶ buttons for prev/next navigation
+- File count display (e.g., "3 of 15 files")
 
-### Classification (Browse Mode)
-- AI suggestion pre-filled in form
-- Manual override for area, category, issuer, document type, date, tags
-- **Destination preview**: Shows where file will be organized before filing
-- Re-analyze button for individual files
+### Document Preview
+- **PDF preview**: Embedded viewer (full width)
+- **Image preview**: Large display area
+- **Extracted text tab**: View OCR/extracted content
+- **Analyze Now button**: Process files without analysis
 
-### Toolbar Actions (Selection Mode)
-- **Select All / Clear**: Quick selection controls
-- **Move**: Batch move to chosen category (auto-extracts text if missing)
-- **Reanalyze**: Backfill missing extracted text (skips files that already have text)
-- **Delete**: Remove selected files
+### Classification Section
+- Compact metadata row: Issuer | Type | Date | Confidence
+- AI suggested category display
+- Colored tag chips
+- Collapsible summary expander
+
+### Toolbar Actions
+- **Area/Category dropdowns**: Pre-filled from AI analysis
+- **Move**: Move file(s) to chosen category (auto-extracts text if missing)
+- **Reanalyze**: Re-run text extraction (skips files that already have text)
+- **Delete**: Remove file(s) with confirmation
 - **Reveal**: Open in system file manager
 
 > **Note:** Reanalyze is safe to run on all files - it only processes files missing `extracted_text` in their metadata, preserving all other fields.
@@ -181,9 +208,9 @@ The UI uses a two-mode selection pattern inspired by iOS:
 - **Rebuild Hash Index**: Scan all files and rebuild duplicate detection index (Settings → About → Advanced)
 
 ### UI Polish
-- **Lucide Icons**: Clean, modern SVG icons throughout the UI (replaces emojis)
-- **Hand loading animation**: Animated hand indicator during processing operations
-- **PDF thumbnails**: Visual previews in grid view (requires pymupdf)
+- **Lucide Icons**: Clean, modern SVG icons throughout the UI
+- **Hand loading animation**: Animated hand indicator during processing
+- **PDF thumbnails**: Visual previews in gallery strip (requires pymupdf)
 
 ## Johnny.Decimal Categories
 
