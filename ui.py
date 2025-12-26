@@ -674,7 +674,7 @@ def get_folder_files(folder_path: str, recursive: bool = True) -> list[tuple[Pat
                 except (json.JSONDecodeError, IOError):
                     pass
 
-            # Fall back to .analysis.json (inbox files)
+            # Fall back to load_analysis (checks .meta.json)
             if metadata is None:
                 metadata = load_analysis(str(f))
 
@@ -798,7 +798,7 @@ def delete_analysis_file(file_path: Path):
         analysis_path.unlink()
 
 
-def reanalyze_file(file_path: Path, skip_if_has_text: bool = True) -> bool:
+def reanalyze_file(file_path: Path, skip_if_has_text: bool = True, progress_callback=None) -> bool:
     """Reanalyze a file to extract text.
 
     For organized files (with .meta.json), updates the metadata file
@@ -807,6 +807,7 @@ def reanalyze_file(file_path: Path, skip_if_has_text: bool = True) -> bool:
     Args:
         file_path: Path to the file to reanalyze
         skip_if_has_text: If True, skip files that already have extracted_text
+        progress_callback: Optional callback function(step: str) to report progress
 
     Returns:
         True if file was processed, False if skipped
@@ -818,15 +819,24 @@ def reanalyze_file(file_path: Path, skip_if_has_text: bool = True) -> bool:
         try:
             with open(meta_path, 'r') as f:
                 metadata = json.load(f)
-            if metadata.get("extracted_text", "").strip():
+            existing_text = metadata.get("extracted_text", "").strip()
+            if existing_text:
+                print(f"  ⏭️  Skipping {file_path.name} - already has {len(existing_text)} chars of text")
                 return False  # Skip - already has extracted text
         except (json.JSONDecodeError, IOError):
             pass  # Continue with reanalysis if we can't read the file
 
+    print(f"  🔄 Reanalyzing {file_path.name}...")
+
     # Clean up orphaned analysis files in the same folder first
     cleanup_orphaned_analysis_files(file_path.parent)
     delete_analysis_file(file_path)
-    preprocess_file(str(file_path))
+    result = preprocess_file(str(file_path), progress_callback=progress_callback)
+
+    # Check if preprocess succeeded
+    if not result.get("success"):
+        print(f"  ❌ Preprocess failed for {file_path.name}: {result.get('error', 'unknown')}")
+        return True  # Return True because we tried (not skipped)
 
     # If this is an organized file (has .meta.json), update it with extracted text
     analysis_path = get_analysis_path(str(file_path))
@@ -842,7 +852,9 @@ def reanalyze_file(file_path: Path, skip_if_has_text: bool = True) -> bool:
                 metadata = json.load(f)
 
             # Only update extracted_text - preserve all other manually curated fields
-            metadata["extracted_text"] = analysis.get("extracted_text", "")
+            new_text = analysis.get("extracted_text", "")
+            metadata["extracted_text"] = new_text
+            print(f"  ✅ Updated {file_path.name} with {len(new_text)} chars of text")
 
             # Save updated metadata
             with open(meta_path, 'w') as f:
@@ -850,16 +862,20 @@ def reanalyze_file(file_path: Path, skip_if_has_text: bool = True) -> bool:
 
             # Clean up the analysis file since metadata is now updated
             analysis_path.unlink()
-        except (json.JSONDecodeError, IOError):
-            pass  # Keep the analysis file if metadata update fails
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"  ❌ Failed to update metadata for {file_path.name}: {e}")
+    elif meta_path.exists():
+        print(f"  ⚠️  No meta.json created for {file_path.name}")
+    else:
+        print(f"  ℹ️  No meta.json for {file_path.name} (inbox file)")
 
     return True
 
 
 def cleanup_orphaned_analysis_files(folder: Path) -> int:
-    """Remove orphaned .analysis.json files in a folder.
+    """Remove orphaned .meta.json files in a folder.
 
-    An orphaned analysis file is one where no matching document exists
+    An orphaned meta file is one where no matching document exists
     (e.g., the document was deleted or renamed).
 
     Returns the number of deleted files.
@@ -867,24 +883,24 @@ def cleanup_orphaned_analysis_files(folder: Path) -> int:
     if not folder.exists():
         return 0
 
-    # Find all analysis files in the folder
-    analysis_files = list(folder.glob("*.analysis.json"))
-    if not analysis_files:
+    # Find all meta files in the folder
+    meta_files = list(folder.glob("*.meta.json"))
+    if not meta_files:
         return 0
 
-    # Find orphaned analysis files (no matching document)
+    # Find orphaned meta files (no matching document)
     orphaned = []
-    for analysis_path in analysis_files:
-        # Get the original document name by removing .analysis.json suffix
-        doc_name = analysis_path.name.replace(".analysis.json", "")
+    for meta_path in meta_files:
+        # Get the original document name by removing .meta.json suffix
+        doc_name = meta_path.name.replace(".meta.json", "")
         doc_path = folder / doc_name
         if not doc_path.exists():
-            orphaned.append(analysis_path)
+            orphaned.append(meta_path)
 
     if not orphaned:
         return 0
 
-    # Delete all orphaned analysis files
+    # Delete all orphaned meta files
     deleted = 0
     for orphan in orphaned:
         orphan.unlink()
@@ -1374,11 +1390,9 @@ def main():
                         processed_count = 0
                         skipped_count = 0
 
-                        for idx, file_str in enumerate(files_to_reanalyze):
-                            file_path = Path(file_str)
+                        def render_progress(container, file_path, idx, total, step):
                             remaining = total - idx
-
-                            with progress_container.container():
+                            with container.container():
                                 st.markdown(HAND_LOADING_CSS, unsafe_allow_html=True)
                                 progress_html = f"""
                                 <div class="hand-loading-container">
@@ -1391,24 +1405,45 @@ def main():
                                     </div>
                                     <div class="hand-loading-text">
                                         <strong>Processing:</strong> {file_path.name[:40]}{'...' if len(file_path.name) > 40 else ''}<br>
-                                        <strong>Completed:</strong> {idx} / {total}<br>
-                                        <strong>Remaining:</strong> {remaining}
+                                        <strong>Step:</strong> {step}<br>
+                                        <strong>Progress:</strong> {idx + 1} / {total} ({remaining} remaining)
                                     </div>
                                 </div>
                                 """
                                 st.markdown(progress_html, unsafe_allow_html=True)
 
-                            if reanalyze_file(file_path):
-                                processed_count += 1
-                            else:
-                                skipped_count += 1
+                        def make_progress_callback(container, file_path, idx, total):
+                            def callback(step: str):
+                                render_progress(container, file_path, idx, total, step)
+                            return callback
+
+                        error_count = 0
+                        for idx, file_str in enumerate(files_to_reanalyze):
+                            file_path = Path(file_str)
+
+                            # Show initial progress for this file
+                            render_progress(progress_container, file_path, idx, total, "Starting...")
+
+                            # Create callback with current values captured
+                            progress_callback = make_progress_callback(progress_container, file_path, idx, total)
+
+                            try:
+                                if reanalyze_file(file_path, progress_callback=progress_callback):
+                                    processed_count += 1
+                                else:
+                                    skipped_count += 1
+                            except Exception as e:
+                                print(f"  ❌ Error reanalyzing {file_path.name}: {e}")
+                                error_count += 1
 
                         progress_container.empty()
 
+                    msg_parts = [f"Processed {processed_count} files"]
                     if skipped_count > 0:
-                        st.success(f"Processed {processed_count} files, skipped {skipped_count} (already had text)")
-                    else:
-                        st.success(f"Processed {processed_count} files")
+                        msg_parts.append(f"skipped {skipped_count} (already had text)")
+                    if error_count > 0:
+                        msg_parts.append(f"{error_count} errors")
+                    st.success(", ".join(msg_parts))
                     st.rerun()
 
             with col_act3:
@@ -1484,7 +1519,7 @@ def main():
 
         icon_subheader("file-scan", file_path.name)
 
-        # Load existing analysis if available
+        # Load existing analysis if available (from .meta.json)
         analysis = load_analysis(str(file_path))
         extracted_text = analysis.get("extracted_text", "") if analysis else ""
 

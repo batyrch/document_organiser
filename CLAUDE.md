@@ -104,11 +104,11 @@ Examples:
 - `find_duplicate_in_index()` - Checks if incoming file already exists (by content)
 
 **Preprocessing functions:**
-- `preprocess_file()` - Extract text + AI analysis, save to `.analysis.json` (no move)
+- `preprocess_file()` - Extract text + AI analysis, save to `.meta.json` (no move)
 - `preprocess_inbox()` - Preprocess all files in inbox once (recursive, with folder hints)
 - `watch_preprocess()` - Watch inbox and preprocess new files continuously
 - `get_folder_hint()` - Extract subfolder name to use as context for AI categorization
-- `get_analysis_path()` - Get path to `.analysis.json` sidecar
+- `get_analysis_path()` - Get path to `.meta.json` sidecar
 - `load_analysis()` - Load existing analysis from JSON
 - `save_analysis()` - Save analysis to JSON sidecar
 - `has_analysis()` - Check if file has been analyzed
@@ -216,7 +216,7 @@ python document_organizer.py --rebuild-index
 The recommended workflow separates AI analysis from manual classification:
 
 ```bash
-# Step 1: Preprocess - extract text + AI analysis (saves .analysis.json files)
+# Step 1: Preprocess - extract text + AI analysis (saves .meta.json files)
 python document_organizer.py --preprocess
 
 # Or preprocess once (no watching)
@@ -227,12 +227,12 @@ streamlit run ui.py
 ```
 
 ### How it works:
-1. **Preprocess**: Extracts text and runs AI analysis, saves to `.analysis.json` sidecar files
+1. **Preprocess**: Extracts text and runs AI analysis, saves to `.meta.json` sidecar files
 2. **Documents stay in inbox** until you manually classify them
 3. **UI shows AI suggestions** pre-filled in the form
 4. **You pick the final category** and click "Process & File"
 
-### Analysis JSON format (`.analysis.json`):
+### Metadata JSON format (`.meta.json`):
 ```json
 {
   "jd_area": "20-29 Medical",

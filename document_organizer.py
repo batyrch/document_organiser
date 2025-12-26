@@ -1005,7 +1005,7 @@ def find_duplicate_in_index(output_dir: str, file_path: str) -> str | None:
 def build_hash_index(output_dir: str, force_rebuild: bool = False) -> dict:
     """Build or rebuild the hash index by scanning all files in output directory.
 
-    Skips system files (starting with .) and metadata files (.meta.json, .analysis.json).
+    Skips system files (starting with .) and metadata files (.meta.json).
 
     Args:
         output_dir: The JD output directory to scan
@@ -1037,7 +1037,7 @@ def build_hash_index(output_dir: str, force_rebuild: bool = False) -> dict:
             continue
 
         # Skip metadata sidecar files
-        if file_path.name.endswith('.meta.json') or file_path.name.endswith('.analysis.json'):
+        if file_path.name.endswith('.meta.json'):
             continue
 
         # Skip unsupported formats
@@ -1099,8 +1099,8 @@ def mark_file_processed(file_hash: str, original_name: str, dest_path: str, proc
 # ==============================================================================
 
 def get_analysis_path(file_path: str) -> Path:
-    """Get path to the analysis JSON file for a document."""
-    return Path(file_path).with_suffix(Path(file_path).suffix + ".analysis.json")
+    """Get path to the meta JSON file for a document."""
+    return Path(file_path).with_suffix(Path(file_path).suffix + ".meta.json")
 
 
 def has_analysis(file_path: str) -> bool:
@@ -1121,7 +1121,7 @@ def load_analysis(file_path: str) -> dict | None:
 
 
 def save_analysis(file_path: str, analysis: dict, extracted_text: str):
-    """Save analysis to a sidecar JSON file."""
+    """Save analysis to a .meta.json sidecar file."""
     analysis_path = get_analysis_path(file_path)
     data = {
         **analysis,
@@ -1133,16 +1133,21 @@ def save_analysis(file_path: str, analysis: dict, extracted_text: str):
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
-def preprocess_file(file_path: str, jd_areas: dict = None, mode: str = "claude-code", folder_hint: str = None) -> dict:
-    """Extract text and generate AI analysis, saving to .analysis.json sidecar.
+def preprocess_file(file_path: str, jd_areas: dict = None, mode: str = "claude-code", folder_hint: str = None, progress_callback=None) -> dict:
+    """Extract text and generate AI analysis, saving to .meta.json sidecar.
 
     Does NOT move the file - leaves it in inbox for manual classification via UI.
 
     mode: "claude-code" (uses Max subscription), "api" (uses ANTHROPIC_API_KEY), "keywords" (no AI)
     folder_hint: Optional folder name that provides context for categorization
+    progress_callback: Optional callback function(step: str) to report progress
     """
     if jd_areas is None:
         jd_areas = JD_AREAS
+
+    def report_progress(step: str):
+        if progress_callback:
+            progress_callback(step)
 
     print(f"\n📄 Preprocessing: {Path(file_path).name}")
     if folder_hint:
@@ -1154,6 +1159,7 @@ def preprocess_file(file_path: str, jd_areas: dict = None, mode: str = "claude-c
         return {"success": True, "skipped": True, "file": file_path}
 
     # Step 1: Extract text
+    report_progress("Extracting text...")
     print("  📖 Extracting text...")
     result = extract_text_with_docling(file_path)
 
@@ -1169,6 +1175,7 @@ def preprocess_file(file_path: str, jd_areas: dict = None, mode: str = "claude-c
     print(f"  ✅ Extracted {len(extracted_text)} characters")
 
     # Step 2: Get AI analysis
+    report_progress("Analyzing with AI...")
     print("  🤖 Analyzing content...")
     analysis = None
 
@@ -1188,6 +1195,7 @@ def preprocess_file(file_path: str, jd_areas: dict = None, mode: str = "claude-c
     print(f"  🏷️  Tags: {', '.join(analysis.get('tags', [])[:5])}")
 
     # Step 3: Save analysis (but don't move file)
+    report_progress("Saving analysis...")
     save_analysis(file_path, analysis, extracted_text)
     print(f"  💾 Saved analysis to: {get_analysis_path(file_path).name}")
 
@@ -1236,8 +1244,8 @@ def preprocess_inbox(inbox_dir: str, jd_areas: dict = None, mode: str = "claude-
             continue
         if file_path.suffix.lower() not in SUPPORTED_FORMATS:
             continue
-        # Skip analysis files themselves
-        if file_path.name.endswith('.analysis.json'):
+        # Skip meta files themselves
+        if file_path.name.endswith('.meta.json'):
             continue
 
         # Get folder hint if file is in a subfolder
@@ -1281,8 +1289,8 @@ def watch_preprocess(inbox_dir: str, jd_areas: dict = None, mode: str = "claude-
                     continue
                 if file_path.suffix.lower() not in SUPPORTED_FORMATS:
                     continue
-                # Skip analysis files
-                if file_path.name.endswith('.analysis.json'):
+                # Skip meta files
+                if file_path.name.endswith('.meta.json'):
                     continue
                 # Skip if already analyzed
                 if has_analysis(str(file_path)):

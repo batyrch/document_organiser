@@ -140,7 +140,7 @@ class TestAnalysisStorage:
         test_file = inbox_dir / "document.pdf"
         analysis_path = get_analysis_path(str(test_file))
 
-        assert analysis_path.name == "document.pdf.analysis.json"
+        assert analysis_path.name == "document.pdf.meta.json"
         assert analysis_path.parent == inbox_dir
 
     def test_load_missing_analysis(self, inbox_dir: Path):

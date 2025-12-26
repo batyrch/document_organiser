@@ -95,7 +95,6 @@ desktop.ini
 # =============================================================================
 # These are generated during document processing
 # Uncomment if you want to track them in git
-*.analysis.json
 *.meta.json
 _jd_ids.json
 _processed.json
