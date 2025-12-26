@@ -31,13 +31,12 @@ document_organiser/
 ├── desktop/                # Desktop app files
 │   ├── launch.sh           # Shell launcher for native app
 │   └── launcher.py         # Python launcher for PyInstaller (deprecated)
-├── pwa/                    # Landing page source files
-│   ├── index.html          # Main landing page
+├── pwa/                    # Local app wrapper files (not deployed)
 │   ├── app.html            # Local app wrapper
-│   └── privacy.html        # Privacy policy
+│   └── privacy.html        # Privacy policy (source)
 └── docs/                   # GitHub Pages deployment folder
-    ├── index.html          # Copy of pwa/index.html
-    └── privacy.html        # Copy of pwa/privacy.html
+    ├── index.html          # Main landing page
+    └── privacy.html        # Privacy policy
 ```
 
 ## Johnny.Decimal System
@@ -570,58 +569,43 @@ Each document gets a `.meta.json` sidecar file:
 }
 ```
 
-## PWA Landing Page
+## GitHub Pages Landing Page
 
 **Live URL**: [batyrch.github.io/document_organiser](https://batyrch.github.io/document_organiser)
 
-The `pwa/` folder contains source files for the public landing page, deployed via GitHub Pages from the `docs/` folder.
+The `docs/` folder contains the public landing page, deployed via GitHub Pages.
 
 ### Page Sections
-- **Hero**: Logo, tagline, privacy badge, launch/get started buttons
+- **Hero**: Logo, tagline, privacy badge, Get Started/GitHub buttons
 - **How It Works**: 3-step visual (Drop files → AI categorizes → Organized library)
-- **Features**: 6-card grid (AI Categorization, Johnny.Decimal, Privacy-First, Multi-Format, Metadata, Duplicate Detection)
+- **Features**: 12-card grid with Lucide icons (Privacy, AI Providers, JD Builder, Gallery UI, Dynamic Folders, OCR, Browse Mode, Duplicate Detection, Upload, Metadata, Batch Import, Setup Wizard)
 - **Installation**: Platform-specific tabs (macOS, Windows, Linux) with copy-paste commands
-- **App Status**: Real-time detection of localhost:8501, launch button when running
 - **FAQ**: Accordion with common questions (privacy, AI providers, cost, requirements)
 - **Footer**: Links to GitHub, privacy policy
 
 ### Features
-- **Server Detection**: Automatically checks if `localhost:8501` is running
-- **Visual Status**: Shows "App Running ✓" or "App Not Running" indicator
-- **Launch Button**: Opens the Streamlit app when server is detected
+- **Lucide Icons**: SVG icons loaded from CDN for clean visuals
 - **Platform Tabs**: OS-specific installation instructions with syntax highlighting
-- **Dark Mode**: Automatic based on system preference
 - **Responsive**: Mobile-friendly layout
-- **No External Dependencies**: Pure HTML/CSS/JS, no build step
+- **No External Dependencies**: Pure HTML/CSS/JS (except Lucide CDN), no build step
 
 ### File Structure
 ```
-pwa/                    # Source files (edit these)
-├── index.html          # Main landing page (~1100 lines)
+docs/                   # GitHub Pages deployment (edit directly)
+├── index.html          # Main landing page
 └── privacy.html        # Privacy policy page
 
-docs/                   # GitHub Pages deployment (copy of pwa/)
-├── index.html
-└── privacy.html
+pwa/                    # Local app files (not deployed to GitHub Pages)
+├── app.html            # Local app wrapper
+└── privacy.html        # Privacy policy source
 ```
 
 ### Deployment (GitHub Pages)
 The site is deployed from the `docs/` folder on the `main` branch.
 
-1. Edit files in `pwa/`
-2. Copy changes to `docs/`:
-   ```bash
-   cp pwa/index.html docs/index.html
-   cp pwa/privacy.html docs/privacy.html
-   ```
-3. Commit and push to `main`
-4. GitHub Pages auto-deploys from `docs/`
-
-### How It Works
-1. User visits [batyrch.github.io/document_organiser](https://batyrch.github.io/document_organiser)
-2. JavaScript checks if localhost:8501 responds
-3. If running: "Launch App" button opens the Streamlit UI
-4. If not running: Shows installation instructions with platform-specific tabs
+1. Edit files directly in `docs/`
+2. Commit and push to `main`
+3. GitHub Pages auto-deploys from `docs/`
 
 ### Privacy Page
 `privacy.html` explains:

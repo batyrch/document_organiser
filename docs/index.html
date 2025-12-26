@@ -6,6 +6,7 @@
     <title>Document Organizer - AI-Powered Document Management</title>
     <meta name="description" content="Automatically organize your scanned documents with AI. 100% local processing - your files never leave your computer.">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📁</text></svg>">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
             --primary: #4F46E5;
@@ -303,6 +304,12 @@
             justify-content: center;
             margin: 0 auto 1.5rem;
             font-size: 2.5rem;
+            color: var(--primary);
+        }
+
+        .step-icon svg {
+            width: 40px;
+            height: 40px;
         }
 
         .step-number {
@@ -351,6 +358,12 @@
         .feature-icon {
             font-size: 2rem;
             margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        .feature-icon svg {
+            width: 32px;
+            height: 32px;
         }
 
         .feature-card h3 {
@@ -669,7 +682,7 @@
     <nav>
         <div class="container">
             <a href="#" class="nav-logo">
-                <span>📁</span>
+                <i data-lucide="folder" style="width: 24px; height: 24px;"></i>
                 Document Organizer
             </a>
             <ul class="nav-links">
@@ -688,7 +701,7 @@
     <section class="hero">
         <div class="container">
             <div class="hero-badge">
-                <span>🔒</span>
+                <i data-lucide="shield-check" style="width: 16px; height: 16px;"></i>
                 100% Local Processing - Your files never leave your computer
             </div>
             <h1>
@@ -736,19 +749,19 @@
             </div>
             <div class="steps">
                 <div class="step">
-                    <div class="step-icon">📥</div>
+                    <div class="step-icon"><i data-lucide="inbox"></i></div>
                     <span class="step-number">1</span>
                     <h3>Drop Files</h3>
                     <p>Place scanned documents, receipts, or any files into your inbox folder. Supports PDF, images, Word, Excel, and more.</p>
                 </div>
                 <div class="step">
-                    <div class="step-icon">🤖</div>
+                    <div class="step-icon"><i data-lucide="brain"></i></div>
                     <span class="step-number">2</span>
                     <h3>AI Analyzes</h3>
                     <p>AI reads each document, extracts key information, and suggests the right category. Works with Claude, GPT, or local Ollama.</p>
                 </div>
                 <div class="step">
-                    <div class="step-icon">✨</div>
+                    <div class="step-icon"><i data-lucide="sparkles"></i></div>
                     <span class="step-number">3</span>
                     <h3>Auto-Organized</h3>
                     <p>Files are moved to structured folders with descriptive names. Metadata is saved for easy searching later.</p>
@@ -766,49 +779,64 @@
             </div>
             <div class="feature-grid">
                 <div class="feature-card">
-                    <div class="feature-icon">🔒</div>
+                    <div class="feature-icon"><i data-lucide="shield-check"></i></div>
                     <h3>Privacy-First</h3>
-                    <p>All processing happens locally on your machine. Only document text is sent to AI providers for categorization.</p>
+                    <p>All processing happens locally. Only extracted text is sent to AI for categorization. Use Ollama for 100% offline.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🤖</div>
+                    <div class="feature-icon"><i data-lucide="brain"></i></div>
                     <h3>Multiple AI Providers</h3>
-                    <p>Choose Anthropic Claude, OpenAI GPT, AWS Bedrock, local Ollama, or simple keyword matching.</p>
+                    <p>Claude (API or Max subscription), OpenAI GPT, AWS Bedrock, local Ollama, or keyword-only mode.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🎨</div>
-                    <h3>Personalized JD System</h3>
-                    <p>AI-powered interview builds a Johnny.Decimal structure tailored to YOUR life - work, hobbies, and everything in between.</p>
+                    <div class="feature-icon"><i data-lucide="sparkles"></i></div>
+                    <h3>JD System Builder</h3>
+                    <p>AI-powered interview creates a personalized Johnny.Decimal structure tailored to your work, hobbies, and life.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🖼️</div>
+                    <div class="feature-icon"><i data-lucide="gallery-horizontal-end"></i></div>
                     <h3>Gallery View UI</h3>
-                    <p>macOS Finder-inspired interface with thumbnail gallery, large preview, and iOS-style multi-select.</p>
+                    <p>macOS Finder-inspired interface with thumbnail strip, large preview, and iOS-style multi-select.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">📤</div>
+                    <div class="feature-icon"><i data-lucide="folder-tree"></i></div>
+                    <h3>Dynamic JD Folders</h3>
+                    <p>Create custom areas and categories on the filesystem. UI auto-updates to reflect your folder structure.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i data-lucide="scan-text"></i></div>
+                    <h3>Docling OCR</h3>
+                    <p>Docling extracts text from scanned PDFs, images, Office docs, and more with high accuracy.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i data-lucide="folder-open"></i></div>
+                    <h3>Browse Mode</h3>
+                    <p>Navigate any folder with breadcrumb navigation, back/forward history, and subfolder dropdown.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i data-lucide="fingerprint"></i></div>
+                    <h3>Duplicate Detection</h3>
+                    <p>SHA256 content hashing with persistent index ensures you never file the same document twice.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i data-lucide="upload"></i></div>
                     <h3>Drag & Drop Upload</h3>
                     <p>Upload files directly in the web UI. Supports PDF, images, Office documents, and text files.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🔍</div>
-                    <h3>OCR Built-In</h3>
-                    <p>Scanned documents? No problem. Docling extracts text from images and PDFs automatically.</p>
+                    <div class="feature-icon"><i data-lucide="file-text"></i></div>
+                    <h3>Rich Metadata</h3>
+                    <p>Each file gets a .meta.json sidecar with issuer, document type, date, tags, summary, and extracted text.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">📂</div>
-                    <h3>Browse Mode</h3>
-                    <p>Navigate any folder with breadcrumb navigation. View, reanalyze, and reorganize existing documents.</p>
+                    <div class="feature-icon"><i data-lucide="folder-input"></i></div>
+                    <h3>Batch Import</h3>
+                    <p>Drop entire folders into inbox. Subfolder names are used as AI context hints for better categorization.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🎯</div>
-                    <h3>Duplicate Detection</h3>
-                    <p>SHA256 content hashing ensures you never file the same document twice.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">📄</div>
-                    <h3>Multi-Format Support</h3>
-                    <p>PDF (including scanned), images (PNG, JPG, TIFF), Office documents (DOCX, XLSX, PPTX), and text files.</p>
+                    <div class="feature-icon"><i data-lucide="settings"></i></div>
+                    <h3>Setup Wizard</h3>
+                    <p>First-run wizard guides you through directory setup, AI provider selection, and JD system configuration.</p>
                 </div>
             </div>
         </div>
@@ -939,7 +967,7 @@
     <footer>
         <div class="container">
             <div class="footer-content">
-                <span>📁 Document Organizer - Open Source</span>
+                <span><i data-lucide="folder" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;"></i> Document Organizer - Open Source</span>
                 <div class="footer-links">
                     <a href="https://github.com/batyrch/document_organiser" target="_blank">GitHub</a>
                     <a href="privacy.html">Privacy</a>
@@ -950,114 +978,6 @@
     </footer>
 
     <script>
-        // Configuration
-        const CONFIG = {
-            host: 'localhost',
-            defaultPort: 8501,
-            checkInterval: 5000,
-            timeout: 2000,
-        };
-
-        // Elements
-        const elements = {
-            statusDot: document.getElementById('statusDot'),
-            statusText: document.getElementById('statusText'),
-            launchBtn: document.getElementById('launchBtn'),
-            btnIcon: document.getElementById('btnIcon'),
-            btnText: document.getElementById('btnText'),
-            launchBtn2: document.getElementById('launchBtn2'),
-            btnIcon2: document.getElementById('btnIcon2'),
-            btnText2: document.getElementById('btnText2'),
-            portInput: document.getElementById('portInput'),
-            retryBtn: document.getElementById('retryBtn'),
-        };
-
-        let isRunning = false;
-        let checkIntervalId = null;
-
-        function getPort() {
-            return parseInt(elements.portInput.value, 10) || CONFIG.defaultPort;
-        }
-
-        function getAppUrl() {
-            return `http://${CONFIG.host}:${getPort()}`;
-        }
-
-        function updateUI(status) {
-            elements.statusDot.className = `status-dot ${status}`;
-
-            const configs = {
-                'checking': {
-                    text: 'Checking if app is running...',
-                    disabled: true,
-                    icon: '⏳',
-                    btnText: 'Checking...'
-                },
-                'running': {
-                    text: 'App is running locally',
-                    disabled: false,
-                    icon: '🚀',
-                    btnText: 'Launch Document Organizer'
-                },
-                'stopped': {
-                    text: 'App is not running',
-                    disabled: true,
-                    icon: '📥',
-                    btnText: 'Install first (see above)'
-                }
-            };
-
-            const config = configs[status];
-            elements.statusText.textContent = config.text;
-
-            // Update both launch buttons
-            [elements.launchBtn, elements.launchBtn2].forEach((btn, i) => {
-                btn.disabled = config.disabled;
-                const iconEl = i === 0 ? elements.btnIcon : elements.btnIcon2;
-                const textEl = i === 0 ? elements.btnText : elements.btnText2;
-                iconEl.textContent = config.icon;
-                textEl.textContent = config.btnText;
-            });
-        }
-
-        async function checkServerStatus() {
-            updateUI('checking');
-
-            const url = getAppUrl();
-
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), CONFIG.timeout);
-
-                await fetch(`${url}/healthz`, {
-                    mode: 'no-cors',
-                    signal: controller.signal,
-                });
-
-                clearTimeout(timeoutId);
-                isRunning = true;
-                updateUI('running');
-
-                if (checkIntervalId) {
-                    clearInterval(checkIntervalId);
-                    checkIntervalId = null;
-                }
-            } catch (error) {
-                isRunning = false;
-                updateUI('stopped');
-
-                if (!checkIntervalId) {
-                    checkIntervalId = setInterval(checkServerStatus, CONFIG.checkInterval);
-                }
-            }
-        }
-
-        function launchApp() {
-            if (isRunning) {
-                window.open(getAppUrl(), '_blank');
-            }
-        }
-
         // Install tabs
         document.querySelectorAll('.install-tab').forEach(tab => {
             tab.addEventListener('click', () => {
@@ -1083,14 +1003,8 @@
             navigator.clipboard.writeText(code);
         }
 
-        // Event listeners
-        elements.launchBtn.addEventListener('click', launchApp);
-        elements.launchBtn2.addEventListener('click', launchApp);
-        elements.retryBtn.addEventListener('click', checkServerStatus);
-        elements.portInput.addEventListener('change', checkServerStatus);
-
-        // Initial check
-        checkServerStatus();
+        // Initialize Lucide icons
+        lucide.createIcons();
     </script>
 </body>
 </html>
