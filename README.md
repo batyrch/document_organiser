@@ -214,7 +214,40 @@ The UI uses a two-mode selection pattern inspired by iOS:
 - **Hand loading animation**: Animated hand indicator during processing
 - **PDF thumbnails**: Visual previews in gallery strip (requires pymupdf)
 
-## Johnny.Decimal Categories
+## Personalized JD System Builder
+
+Build a Johnny Decimal system tailored to YOUR life through an AI-powered interview.
+
+### How It Works
+
+1. Go to **Settings → JD System** tab
+2. Click **"Build My JD System"**
+3. AI asks about your work/life (4-6 questions)
+4. Review the proposed structure
+5. Accept & Create!
+
+The AI learns about:
+- Your work situation (employee, freelancer, student?)
+- What documents you handle most
+- Whether to separate personal/business
+- Any special needs (hobbies, side projects)
+
+### What Gets Created
+
+- **jdex.json** - Your custom JD structure stored in `00-09 System/00 Index/`
+- **Folder structure** - Created automatically
+- **Keywords** - For auto-classification of future documents
+
+### Johnny Decimal Constraints
+
+The system enforces these rules (per official Johnny Decimal philosophy):
+- Maximum **10 areas** (00-09 through 90-99)
+- Maximum **10 categories** per area
+- Area 00-09 reserved for System (Index, Inbox)
+
+## Default Johnny.Decimal Categories
+
+If you don't build a custom system, these defaults are used:
 
 | Area | Categories |
 |------|------------|

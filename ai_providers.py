@@ -80,6 +80,17 @@ class AIProvider(ABC):
         # Default implementation - subclasses should override
         return None
 
+    def supports_chat(self) -> bool:
+        """Check if this provider supports multi-turn chat.
+
+        Returns True if chat() is implemented and the provider is available.
+        """
+        # Check if chat method is overridden from base class
+        return (
+            self.__class__.chat is not AIProvider.chat
+            and self.is_available()
+        )
+
     def get_categorization_prompt(self, text: str, jd_areas: dict) -> str:
         """Generate the categorization prompt for any provider."""
         # Truncate text if too long
@@ -248,6 +259,39 @@ class ClaudeCodeProvider(AIProvider):
 
         except (subprocess.TimeoutExpired, Exception) as e:
             print(f"Claude Code CLI error: {e}")
+            return None
+
+    def chat(self, system_prompt: str, messages: list) -> Optional[str]:
+        """Have a multi-turn conversation with Claude Code CLI."""
+        if not self.is_available():
+            return None
+
+        try:
+            # Build a single prompt from system prompt and conversation history
+            conversation_text = f"System: {system_prompt}\n\n"
+            for msg in messages:
+                role = "User" if msg["role"] == "user" else "Assistant"
+                conversation_text += f"{role}: {msg['content']}\n\n"
+            conversation_text += "Assistant:"
+
+            result = subprocess.run(
+                ["claude", "--print", conversation_text],
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+
+            if result.returncode != 0:
+                print(f"Claude Code CLI chat failed: {result.stderr}")
+                return None
+
+            return result.stdout.strip()
+
+        except subprocess.TimeoutExpired:
+            print("Claude Code CLI chat timed out")
+            return None
+        except Exception as e:
+            print(f"Claude Code CLI chat error: {e}")
             return None
 
 
@@ -431,6 +475,48 @@ class BedrockProvider(AIProvider):
             print(f"AWS Bedrock error: {e}")
             return None
 
+    def chat(self, system_prompt: str, messages: list) -> Optional[str]:
+        """Have a multi-turn conversation with Bedrock Claude."""
+        if not self.is_available():
+            return None
+
+        # Only Claude models support chat properly on Bedrock
+        if "anthropic" not in self.model_id:
+            print(f"Chat not supported for model: {self.model_id}")
+            return None
+
+        try:
+            import boto3
+
+            session = boto3.Session(
+                profile_name=self.profile,
+                region_name=self.region
+            ) if self.profile else boto3.Session(region_name=self.region)
+
+            client = session.client("bedrock-runtime")
+
+            body = json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 2000,
+                "system": system_prompt,
+                "messages": messages
+            })
+
+            response = client.invoke_model(
+                modelId=self.model_id,
+                body=body
+            )
+
+            response_body = json.loads(response["body"].read())
+            return response_body["content"][0]["text"]
+
+        except ImportError:
+            print("boto3 package not installed. Run: pip install boto3")
+            return None
+        except Exception as e:
+            print(f"AWS Bedrock chat error: {e}")
+            return None
+
 
 # ==============================================================================
 # OLLAMA / LOCAL PROVIDER
@@ -508,6 +594,47 @@ class OllamaProvider(AIProvider):
             return None
         except Exception as e:
             print(f"Ollama error: {e}")
+            return None
+
+    def chat(self, system_prompt: str, messages: list) -> Optional[str]:
+        """Have a multi-turn conversation with Ollama."""
+        if not self.is_available():
+            return None
+
+        try:
+            import requests
+
+            # Convert messages to Ollama chat format
+            ollama_messages = [{"role": "system", "content": system_prompt}]
+            for msg in messages:
+                ollama_messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"]
+                })
+
+            response = requests.post(
+                f"{self.base_url}/api/chat",
+                json={
+                    "model": self.model,
+                    "messages": ollama_messages,
+                    "stream": False,
+                    "options": {"num_predict": 2000}
+                },
+                timeout=120
+            )
+
+            if response.status_code != 200:
+                print(f"Ollama chat failed: {response.status_code}")
+                return None
+
+            result = response.json()
+            return result.get("message", {}).get("content", "")
+
+        except ImportError:
+            print("requests package not installed. Run: pip install requests")
+            return None
+        except Exception as e:
+            print(f"Ollama chat error: {e}")
             return None
 
 
@@ -602,6 +729,7 @@ def list_providers() -> dict:
             "display_name": provider.display_name,
             "requires_api_key": provider.requires_api_key,
             "available": provider.is_available(),
+            "supports_chat": provider.supports_chat(),
         }
     return result
 
@@ -683,3 +811,41 @@ def categorize_document(
         if fallback_to_keywords:
             return KeywordProvider().categorize(text, jd_areas)
         return None
+
+
+def get_chat_provider(
+    name: Optional[str] = None,
+    **kwargs
+) -> Optional[AIProvider]:
+    """
+    Get an AI provider that supports chat.
+
+    Args:
+        name: Provider name. If None, auto-detects first available chat provider.
+        **kwargs: Provider-specific configuration options.
+
+    Returns:
+        An AIProvider instance that supports chat, or None if none available.
+    """
+    if name:
+        # Try to get the specified provider
+        try:
+            provider = get_provider(name, **kwargs)
+            if provider.supports_chat():
+                return provider
+            print(f"Provider '{name}' does not support chat")
+            return None
+        except ValueError:
+            return None
+
+    # Auto-detect: try providers that support chat in order of preference
+    chat_capable_providers = ["anthropic", "openai", "claude-code", "bedrock", "ollama"]
+    for provider_name in chat_capable_providers:
+        try:
+            provider = PROVIDERS[provider_name](**kwargs) if kwargs else PROVIDERS[provider_name]()
+            if provider.supports_chat():
+                return provider
+        except Exception:
+            continue
+
+    return None

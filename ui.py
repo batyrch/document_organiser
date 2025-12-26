@@ -1933,6 +1933,191 @@ def main():
                 st.rerun()
 
 
+def render_jd_system_tab(settings):
+    """Render the JD System configuration tab with interview builder."""
+    icon_subheader("layout-grid", "Johnny Decimal System Builder")
+
+    output_dir = settings.get("output_dir", "")
+
+    # Check if a dynamic JD system exists
+    has_dynamic_system = False
+    jdex_path = None
+    if output_dir:
+        jdex_path = Path(output_dir) / "00-09 System" / "00 Index" / "jdex.json"
+        has_dynamic_system = jdex_path.exists()
+
+    if has_dynamic_system:
+        st.success("You have a personalized JD system configured.")
+
+        # Show current system info
+        try:
+            from jd_system import JDSystem
+            system = JDSystem(output_dir)
+            if system.exists:
+                meta = system.meta
+                st.markdown(f"""
+                - **Created:** {meta.get('created_at', 'Unknown')[:10] if meta.get('created_at') else 'Unknown'}
+                - **Method:** {meta.get('generation_method', 'Unknown').title()}
+                - **Areas:** {len(system.areas)}
+                """)
+
+                # Show area summary
+                with st.expander("View Current Structure"):
+                    for area_name, area_data in sorted(system.areas.items()):
+                        categories = area_data.get("categories", area_data)
+                        if isinstance(categories, dict) and "keywords" not in categories:
+                            cat_names = list(categories.keys())
+                        else:
+                            cat_names = [k for k in categories.keys() if k != "description"]
+                        st.markdown(f"**{area_name}** ({len(cat_names)} categories)")
+                        for cat in sorted(cat_names)[:5]:
+                            st.markdown(f"  - {cat}")
+                        if len(cat_names) > 5:
+                            st.markdown(f"  - _...and {len(cat_names) - 5} more_")
+        except ImportError:
+            st.warning("JD System module not available")
+
+        st.divider()
+        if st.button("Rebuild JD System", help="Start fresh with a new personalized system"):
+            st.session_state.jd_builder_mode = "interview"
+            st.session_state.jd_conversation = []
+            st.rerun()
+
+    else:
+        st.info("""
+        Create a personalized Johnny Decimal system tailored to your life and work.
+
+        The AI will ask you a few questions about your document organization needs,
+        then propose a custom structure. You can review and modify it before accepting.
+        """)
+
+        if st.button("Build My JD System", type="primary"):
+            st.session_state.jd_builder_mode = "interview"
+            st.session_state.jd_conversation = []
+            st.rerun()
+
+    # Interview mode
+    if st.session_state.get("jd_builder_mode") == "interview":
+        st.divider()
+        render_jd_interview(settings, output_dir)
+
+
+def render_jd_interview(settings, output_dir):
+    """Render the JD interview builder chat interface."""
+    icon_subheader("message-circle", "JD System Interview")
+
+    # Initialize conversation if needed
+    if "jd_conversation" not in st.session_state:
+        st.session_state.jd_conversation = []
+
+    if "jd_builder" not in st.session_state:
+        from jd_builder import InterviewBuilder
+        st.session_state.jd_builder = InterviewBuilder(output_dir)
+
+    builder = st.session_state.jd_builder
+
+    # Get AI provider that supports chat
+    try:
+        from ai_providers import get_chat_provider
+        provider = get_chat_provider(settings.get("ai_provider"))
+        if not provider:
+            st.error("No AI provider with chat support is available. The JD Interview requires an AI provider that supports multi-turn conversations (Anthropic, OpenAI, Claude Code CLI, Bedrock, or Ollama).")
+            st.info("Please configure one of these providers in Settings → AI Provider.")
+            if st.button("Go to AI Settings"):
+                st.session_state.jd_builder_mode = None
+                st.rerun()
+            return
+        builder.set_ai_provider(provider)
+    except Exception as e:
+        st.error(f"Error initializing AI provider: {e}")
+        return
+
+    # Display conversation
+    conversation = builder.get_conversation_for_display()
+    for msg in conversation:
+        if msg["role"] == "assistant":
+            with st.chat_message("assistant", avatar="🤖"):
+                st.markdown(msg["content"])
+        else:
+            with st.chat_message("user", avatar="👤"):
+                st.markdown(msg["content"])
+
+    # Check if we have a proposal
+    if builder.has_proposal:
+        st.divider()
+        st.success("I've designed a JD system for you! Review it below.")
+
+        # Show proposed structure
+        with st.expander("Proposed Structure", expanded=True):
+            for area_name, area_data in sorted(builder.proposed_structure.items()):
+                # Handle both dict and string formats for area_data
+                if isinstance(area_data, dict):
+                    categories = area_data.get("categories", {})
+                    st.markdown(f"**{area_name}**")
+                    if area_data.get("description"):
+                        st.caption(area_data["description"])
+                else:
+                    # area_data is a string (description) or other format
+                    categories = {}
+                    st.markdown(f"**{area_name}**")
+                    if area_data:
+                        st.caption(str(area_data))
+
+                for cat_name, cat_data in sorted(categories.items()):
+                    # Handle both dict and string formats for cat_data
+                    if isinstance(cat_data, dict):
+                        desc = cat_data.get("description", "")
+                    else:
+                        desc = str(cat_data) if cat_data else ""
+                    st.markdown(f"  - {cat_name}" + (f" - _{desc}_" if desc else ""))
+
+        # Validate
+        is_valid, errors = builder.validate_proposal()
+        if not is_valid:
+            st.error("Validation errors:")
+            for err in errors:
+                st.markdown(f"- {err}")
+
+        # Action buttons
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("Accept & Create", type="primary", disabled=not is_valid):
+                system = builder.finalize()
+                if system:
+                    st.success("JD System created successfully!")
+                    st.session_state.jd_builder_mode = None
+                    st.session_state.jd_builder = None
+                    st.rerun()
+                else:
+                    st.error("Failed to create JD system")
+
+        with col2:
+            if st.button("Continue Chat", help="Ask for modifications"):
+                pass  # Just continue the conversation
+
+        with col3:
+            if st.button("Start Over"):
+                builder.reset()
+                st.session_state.jd_conversation = []
+                st.rerun()
+
+    # Chat input
+    if user_input := st.chat_input("Type your response..."):
+        with st.spinner("Thinking..."):
+            result = builder.process_message(user_input)
+
+        if result["type"] == "error":
+            st.error(result["message"])
+        else:
+            st.rerun()
+
+    # Cancel button
+    if st.button("Cancel"):
+        st.session_state.jd_builder_mode = None
+        st.session_state.jd_builder = None
+        st.rerun()
+
+
 def render_settings_page():
     """Render the Settings page for configuring the application."""
     icon_title("settings", "Settings")

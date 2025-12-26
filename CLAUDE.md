@@ -13,6 +13,9 @@ document_organiser/
 ├── icons.py                # Lucide Icons SVG definitions and helper functions
 ├── ai_providers.py         # AI provider integrations (Claude, OpenAI, Ollama, etc.)
 ├── settings.py             # Persistent settings management
+├── jd_system.py            # Dynamic JD system management (jdex.json)
+├── jd_builder.py           # AI-powered JD system builders (Interview, Wizard, DocAnalysis)
+├── jd_prompts.py           # AI prompts for JD system generation
 ├── device_auth.py          # Device authentication handling
 ├── preview_renames.py      # Migration preview script for renaming existing folders
 ├── migrate_to_jd.py        # Migration script for existing files
@@ -136,6 +139,90 @@ The system supports user-created areas and categories:
 - Folder names are passed to AI as context hints (e.g., "Salary Slips" folder → 45 Salary & Payments)
 - `folder_hint` parameter in `categorize_with_claude_code()` and `categorize_with_llm()`
 
+### jd_system.py
+Dynamic JD system management - replaces hardcoded JD_AREAS with user-customized structure.
+
+**Classes:**
+- `JDValidator` - Enforces Johnny Decimal constraints
+  - `MAX_AREAS = 10` - Maximum 10 areas (00-09 through 90-99)
+  - `MAX_CATEGORIES_PER_AREA = 10` - Maximum 10 categories per area
+  - `validate_structure()` - Validates a complete JD structure
+  - `suggest_next_category_number()` - Finds next available slot in an area
+  - `is_valid_area_name()` / `is_valid_category_name()` - Pattern validation
+
+- `JDSystem` - Manages dynamic JD structure with persistence
+  - `load()` / `save()` - Load/save to jdex.json
+  - `create_from_structure()` - Create new system from proposed structure
+  - `get_areas_for_classification()` - Returns dict compatible with existing code
+  - `add_category()` / `add_area()` - Modify structure
+  - `create_folders()` - Create folder structure on disk
+  - `record_classification()` - Track confidence stats (for future evolution)
+
+**Helper Functions:**
+- `get_jd_system(output_dir)` - Get JDSystem if jdex.json exists
+- `get_jd_areas(output_dir, fallback_areas)` - Get areas, preferring dynamic over fallback
+- `migrate_from_legacy(output_dir, legacy_areas)` - Migrate hardcoded to dynamic
+
+**Storage Location:** `{output_dir}/00-09 System/00 Index/jdex.json`
+
+### jd_builder.py
+AI-powered builders for creating personalized JD systems.
+
+**Classes:**
+- `InterviewBuilder` - Conversational system design
+  - `set_ai_provider(provider)` - Set AI provider with chat() method
+  - `process_message(user_input)` - Send message, get AI response or proposal
+  - `get_conversation_for_display()` - Get chat history for UI
+  - `validate_proposal()` - Check proposal against JD constraints
+  - `finalize()` - Create JDSystem and folders
+  - `reset()` - Start over
+
+- `WizardBuilder` - Template-based setup (placeholder for future)
+  - `TEMPLATES` - Predefined templates (personal, freelance, employee)
+  - `select_template()` / `customize()` / `finalize()`
+
+- `DocumentAnalysisBuilder` - Learn from existing docs (placeholder for future)
+  - `add_folder()` - Add folder to analyze
+  - `analyze()` - Batch analyze and propose structure
+
+### jd_prompts.py
+AI prompts for JD system generation.
+
+**Prompts:**
+- `INTERVIEW_SYSTEM_PROMPT` - Guides AI through conversational interview
+- `INTERVIEW_INITIAL_MESSAGE` - Opening greeting
+- `DOCUMENT_ANALYSIS_PROMPT` - For batch document analysis (future)
+- `LOW_CONFIDENCE_ANALYSIS_PROMPT` - For evolution suggestions (future)
+- `REORGANIZATION_PROMPT` - For system health review (future)
+
+**Helper Functions:**
+- `get_interview_messages()` - Format conversation for AI
+- `parse_structure_from_response()` - Extract JSON structure from AI response
+
+### ai_providers.py
+Pluggable AI provider integrations for document categorization and chat.
+
+**Base Class:**
+- `AIProvider` (ABC) - Abstract base class
+  - `categorize(text, jd_areas)` - Categorize document text
+  - `chat(system_prompt, messages)` - Multi-turn conversation (for JD builder)
+  - `is_available()` - Check if provider is configured
+  - `get_categorization_prompt()` - Generate categorization prompt
+  - `parse_json_response()` - Parse JSON from AI response
+
+**Providers:**
+- `AnthropicProvider` - Anthropic Claude API (has `chat()`)
+- `OpenAIProvider` - OpenAI GPT API (has `chat()`)
+- `ClaudeCodeProvider` - Claude Code CLI (Max subscription)
+- `BedrockProvider` - AWS Bedrock
+- `OllamaProvider` - Local Ollama
+- `KeywordProvider` - Keyword matching (no AI)
+
+**Helper Functions:**
+- `get_provider(name)` - Get provider by name or auto-detect
+- `list_providers()` - List all providers and their status
+- `categorize_document()` - Categorize with fallback
+
 ### settings.py
 - Persistent settings management stored in platform-specific config directory
 - Settings stored in JSON at:
@@ -169,7 +256,9 @@ The system supports user-created areas and categories:
   └──────────────────────────────────────────────────────────────────┘
   ```
 - `render_app()` - Main entry point, handles setup wizard vs normal app
-- `render_settings_page()` - Full settings UI with tabs (Directories, AI, About)
+- `render_settings_page()` - Full settings UI with tabs (Directories, AI, JD System, About)
+- `render_jd_system_tab()` - JD System builder tab with status and interview launcher
+- `render_jd_interview()` - Chat interface for JD system interview builder
   - **Advanced section**: Rebuild Hash Index button, Reset Settings
 - `render_setup_wizard()` - First-run configuration wizard
 - **Gallery View Components:**
