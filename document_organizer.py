@@ -211,6 +211,156 @@ for area, categories in JD_AREAS.items():
     for category, config in categories.items():
         JD_KEYWORDS[(area, category)] = config.get("keywords", [])
 
+
+# ==============================================================================
+# DYNAMIC JD FOLDER SCANNING
+# ==============================================================================
+
+def is_valid_jd_area(folder_name: str) -> bool:
+    """Check if a folder name matches the JD area pattern (e.g., '10-19 Finance').
+
+    Pattern: Two digits, hyphen, two digits, space, then any text.
+    Examples: '10-19 Finance', '60-69 Hobbies', '70-79 Projects'
+    """
+    import re
+    pattern = r'^\d{2}-\d{2}\s+.+'
+    return bool(re.match(pattern, folder_name))
+
+
+def is_valid_jd_category(folder_name: str) -> bool:
+    """Check if a folder name matches the JD category pattern (e.g., '14 Receipts').
+
+    Pattern: Two digits, space, then any text.
+    Examples: '14 Receipts', '21 Records', '61 Photography'
+    """
+    import re
+    pattern = r'^\d{2}\s+.+'
+    return bool(re.match(pattern, folder_name))
+
+
+def get_area_range(area_name: str) -> tuple | None:
+    """Extract the numeric range from an area name (e.g., '10-19 Finance' -> (10, 19))."""
+    import re
+    match = re.match(r'^(\d{2})-(\d{2})\s+', area_name)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    return None
+
+
+def get_category_number(category_name: str) -> int | None:
+    """Extract the category number from a category name (e.g., '14 Receipts' -> 14)."""
+    import re
+    match = re.match(r'^(\d{2})\s+', category_name)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def category_belongs_to_area(category_name: str, area_name: str) -> bool:
+    """Check if a category number falls within an area's range.
+
+    E.g., '14 Receipts' belongs to '10-19 Finance' because 14 is in range 10-19.
+    """
+    cat_num = get_category_number(category_name)
+    area_range = get_area_range(area_name)
+    if cat_num is None or area_range is None:
+        return False
+    return area_range[0] <= cat_num <= area_range[1]
+
+
+def scan_jd_folders(output_dir: str) -> dict:
+    """Scan the output directory for JD-style folders.
+
+    Discovers user-created areas and categories by scanning the filesystem.
+    Returns a dict mapping area names to dicts of category names with empty keywords.
+
+    Args:
+        output_dir: The JD output directory to scan
+
+    Returns:
+        Dict like {'10-19 Finance': {'11 Banking': {'keywords': []}, ...}, ...}
+    """
+    output_path = Path(output_dir)
+    if not output_path.exists():
+        return {}
+
+    discovered = {}
+
+    # Scan for area folders (top level)
+    for area_path in sorted(output_path.iterdir()):
+        if not area_path.is_dir():
+            continue
+
+        area_name = area_path.name
+        if not is_valid_jd_area(area_name):
+            continue
+
+        # Scan for category folders within this area
+        categories = {}
+        for cat_path in sorted(area_path.iterdir()):
+            if not cat_path.is_dir():
+                continue
+
+            cat_name = cat_path.name
+            if is_valid_jd_category(cat_name) and category_belongs_to_area(cat_name, area_name):
+                categories[cat_name] = {"keywords": []}
+
+        if categories:
+            discovered[area_name] = categories
+
+    return discovered
+
+
+def get_merged_jd_areas(output_dir: str = None) -> dict:
+    """Get JD_AREAS merged with any user-created folders from filesystem.
+
+    Scans the output directory for user-created JD folders and merges them
+    with the predefined JD_AREAS. User-created folders take precedence
+    (e.g., if user renamed a category, the new name is used).
+
+    Args:
+        output_dir: Optional path to scan for user-created folders.
+                   If None, returns just the predefined JD_AREAS.
+
+    Returns:
+        Dict with same structure as JD_AREAS, including user-created folders.
+    """
+    import copy
+    merged = copy.deepcopy(JD_AREAS)
+
+    if not output_dir:
+        return merged
+
+    discovered = scan_jd_folders(output_dir)
+
+    for disc_area, disc_categories in discovered.items():
+        if disc_area in merged:
+            # Area exists - merge categories
+            existing_nums = {}
+            for cat_name, cat_config in merged[disc_area].items():
+                num = get_category_number(cat_name)
+                if num is not None:
+                    existing_nums[num] = (cat_name, cat_config)
+
+            # Add discovered categories, preferring filesystem names
+            for disc_cat in disc_categories:
+                disc_num = get_category_number(disc_cat)
+                if disc_num is not None:
+                    # Replace predefined with discovered (user may have renamed)
+                    existing_nums[disc_num] = (disc_cat, {"keywords": []})
+
+            # Rebuild category dict sorted by number
+            merged[disc_area] = {
+                name: config
+                for num, (name, config) in sorted(existing_nums.items())
+            }
+        else:
+            # New area created by user - add it
+            merged[disc_area] = disc_categories
+
+    return merged
+
+
 # ==============================================================================
 # DOCUMENT PROCESSING
 # ==============================================================================

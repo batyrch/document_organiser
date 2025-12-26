@@ -172,11 +172,13 @@ The UI uses a two-mode selection pattern inspired by iOS:
   - Tap "Done" to exit and clear selection
 
 ### Gallery Strip Features
-- Horizontal scrolling thumbnail strip (up to 50 files visible)
+- Paginated thumbnail strip showing **7 files at a time**
+- Current file centered in view when possible
+- ◀/▶ buttons scroll by 1 file at a time
 - Current file highlighted with blue border
 - Selected files highlighted in selection mode
-- ◀/▶ buttons for prev/next navigation
 - File count display (e.g., "3 of 15 files")
+- **High-quality thumbnails**: 130x100px with sharpening for text-heavy documents
 
 ### Document Preview
 - **PDF preview**: Embedded viewer (full width)

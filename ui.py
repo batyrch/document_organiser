@@ -40,6 +40,8 @@ from document_organizer import (
     preprocess_file,
     build_hash_index,
     load_hash_index,
+    get_merged_jd_areas,
+    get_area_range,
     DEFAULT_JD_INBOX,
     DEFAULT_JD_OUTPUT,
 )
@@ -755,7 +757,7 @@ def render_actions_toolbar(
 
     Returns (action, area, category) where action is the button clicked or None.
     """
-    areas, area_categories = get_areas_and_categories()
+    areas, area_categories = get_areas_and_categories(output_dir)
 
     # Determine if actions should be enabled
     if selection_mode:
@@ -1240,11 +1242,28 @@ def display_image(file_path: Path):
     st.image(str(file_path), width="stretch")
 
 
-def get_areas_and_categories():
-    """Get list of areas and their categories for dropdowns."""
+def get_areas_and_categories(output_dir: str | None = None):
+    """Get list of areas and their categories for dropdowns.
+
+    Merges the predefined JD_AREAS with any user-created folders discovered
+    on the filesystem. User-created folders take precedence for categories
+    (i.e., if user renamed a category, the new name is used).
+
+    Args:
+        output_dir: Optional path to scan for user-created folders.
+                   If None, only returns predefined JD_AREAS.
+
+    Returns:
+        Tuple of (areas_list, area_categories_dict)
+    """
+    # Get merged JD areas (predefined + user-created from filesystem)
+    merged_areas = get_merged_jd_areas(output_dir)
+
+    # Convert to list format for dropdowns
     areas = []
     area_categories = {}
-    for area, categories in JD_AREAS.items():
+
+    for area, categories in merged_areas.items():
         if area == "00-09 System":
             # Only include Uncategorized from System area
             areas.append(area)
@@ -1252,6 +1271,10 @@ def get_areas_and_categories():
         elif area != "90-99 Archive":
             areas.append(area)
             area_categories[area] = list(categories.keys())
+
+    # Sort areas by their numeric prefix
+    areas = sorted(areas, key=lambda x: get_area_range(x) or (99, 99))
+
     return areas, area_categories
 
 

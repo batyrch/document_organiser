@@ -75,7 +75,7 @@ Examples:
 3. **Personal names excluded** - unless distinguishing family members' documents
 4. **Year in filename** - extracted from document date
 
-### JD Areas
+### JD Areas (Predefined)
 - **00-09 System** - Index, Inbox, Templates, Uncategorized
 - **10-19 Finance** - Banking, Taxes, Insurance, Receipts, Investments, Housing
 - **20-29 Medical** - Records, Insurance, Prescriptions, Vision, Bills
@@ -83,6 +83,15 @@ Examples:
 - **40-49 Work** - Employment, Expenses, Projects, Certifications, Salary & Payments
 - **50-59 Personal** - Education, Travel, Certificates, Memberships, Operation Manual, Health and Wellbeing, IDs
 - **90-99 Archive** - By year (2024, 2023, etc.)
+
+### Dynamic JD Folders (User-Created)
+The system supports user-created areas and categories:
+- **Create folders manually** following JD naming patterns (e.g., `60-69 Hobbies/61 Photography`)
+- **Rename existing categories** - filesystem names take precedence over predefined names
+- **UI dropdowns auto-update** to reflect user-created folders
+- **Pattern requirements**:
+  - Areas: `XX-XX Name` (e.g., `60-69 Hobbies`)
+  - Categories: `XX Name` where XX is within the area range (e.g., `61 Photography` for area `60-69`)
 
 ## Key Files
 
@@ -95,6 +104,15 @@ Examples:
 - `generate_filename()` - Generates filename: `{JD_ID} {Issuer} {DocType} {Year}.ext`
 - `organize_file()` - Creates flat JD structure (Area/Category/files) and moves files
 - `get_or_create_jd_id()` - Manages ID assignment per issuer+year combination
+
+**Dynamic folder scanning functions:**
+- `is_valid_jd_area()` - Validates area folder naming pattern (e.g., `10-19 Finance`)
+- `is_valid_jd_category()` - Validates category folder naming pattern (e.g., `14 Receipts`)
+- `get_area_range()` - Extracts numeric range from area name (e.g., `10-19` → `(10, 19)`)
+- `get_category_number()` - Extracts category number (e.g., `14 Receipts` → `14`)
+- `category_belongs_to_area()` - Checks if category number is within area range
+- `scan_jd_folders()` - Scans filesystem for JD-style folders
+- `get_merged_jd_areas()` - Merges predefined JD_AREAS with user-created folders
 
 **Duplicate detection functions:**
 - `get_file_hash()` - SHA256 hash of file contents
