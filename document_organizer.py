@@ -293,6 +293,76 @@ def extract_text_fallback(file_path: str) -> dict:
 # AI CATEGORIZATION
 # ==============================================================================
 
+def build_categorization_prompt(text: str, jd_areas: dict, folder_hint: str = None, max_chars: int = 6000) -> str:
+    """Build the AI prompt for document categorization.
+
+    Shared helper used by both categorize_with_claude_code() and categorize_with_llm().
+    """
+    # Truncate text if too long
+    truncated_text = text[:max_chars] if len(text) > max_chars else text
+
+    # Build JD structure for prompt
+    jd_structure = {}
+    for area, categories in jd_areas.items():
+        if area == "00-09 System":
+            # Only include Uncategorized from System area
+            jd_structure[area] = ["09 Uncategorized"]
+        elif area != "90-99 Archive":
+            jd_structure[area] = list(categories.keys())
+
+    # Add folder context if provided
+    folder_context = ""
+    if folder_hint:
+        folder_context = f"""
+IMPORTANT CONTEXT: This file came from a folder named "{folder_hint}".
+The folder name is a strong hint about what type of documents these are (e.g., "Salary Slips" suggests employment/payslips, "Medical Reports" suggests medical records).
+Use this context to help categorize the document appropriately.
+"""
+
+    return f"""You are a document categorization assistant using the Johnny.Decimal system.
+
+Available Johnny.Decimal areas and categories:
+{json.dumps(jd_structure, indent=2)}
+{folder_context}
+Analyze this document and categorize it.
+
+Document content:
+---
+{truncated_text}
+---
+
+IMPORTANT naming rules:
+- "document_type" should describe WHAT the document is (e.g., "Blood Test Results", "Employment Contract", "Insurance Card")
+- "issuer" should be the organization/entity that CREATED or ISSUED the document (e.g., "Charité Hospital", "TK Insurance", "AutoScout24")
+- Do NOT use the document subject's personal name as issuer (e.g., if it's a medical report FOR "John Smith", the issuer is the hospital, not John Smith)
+- "subject_person" should ONLY be filled if the document is about someone OTHER than the system owner (e.g., spouse's documents)
+- Use "00-09 System" / "09 Uncategorized" for research papers, academic articles, miscellaneous documents, or anything that doesn't clearly fit into the other categories
+
+Respond with ONLY valid JSON in this exact format (no other text):
+{{"jd_area": "one of the areas like 10-19 Finance", "jd_category": "one of the categories like 14 Receipts", "document_type": "specific type like Blood Test Results or Employment Contract", "issuer": "organization that created/issued the document", "subject_person": "only if document is about someone other than system owner, otherwise null", "tags": ["tag1", "tag2"], "confidence": "high/medium/low", "summary": "One sentence summary", "date_mentioned": "YYYY-MM-DD or null", "entities": ["organization names", "relevant identifiers"]}}"""
+
+
+def parse_json_response(result_text: str) -> dict:
+    """Parse JSON from AI response, handling markdown code blocks.
+
+    Shared helper for extracting JSON from various AI response formats.
+    """
+    import re
+
+    # Strip markdown code blocks if present
+    if "```json" in result_text:
+        result_text = result_text.split("```json")[1].split("```")[0]
+    elif "```" in result_text:
+        result_text = result_text.split("```")[1].split("```")[0]
+
+    # Try to find JSON object in the response
+    json_match = re.search(r'\{[^{}]*\}', result_text, re.DOTALL)
+    if json_match:
+        result_text = json_match.group()
+
+    return json.loads(result_text)
+
+
 def categorize_with_keywords(text: str, jd_areas: dict = None) -> dict:
     """Simple keyword-based categorization using Johnny.Decimal (no API needed)."""
     if jd_areas is None:
@@ -348,49 +418,8 @@ def categorize_with_claude_code(text: str, jd_areas: dict = None, folder_hint: s
     if jd_areas is None:
         jd_areas = JD_AREAS
 
-    # Truncate text if too long
-    max_chars = 6000
-    truncated_text = text[:max_chars] if len(text) > max_chars else text
-
-    # Build JD structure for prompt
-    jd_structure = {}
-    for area, categories in jd_areas.items():
-        if area == "00-09 System":
-            # Only include Uncategorized from System area
-            jd_structure[area] = ["09 Uncategorized"]
-        elif area != "90-99 Archive":
-            jd_structure[area] = list(categories.keys())
-
-    # Add folder context if provided
-    folder_context = ""
-    if folder_hint:
-        folder_context = f"""
-IMPORTANT CONTEXT: This file came from a folder named "{folder_hint}".
-The folder name is a strong hint about what type of documents these are (e.g., "Salary Slips" suggests employment/payslips, "Medical Reports" suggests medical records).
-Use this context to help categorize the document appropriately.
-"""
-
-    prompt = f"""You are a document categorization assistant using the Johnny.Decimal system.
-
-Available Johnny.Decimal areas and categories:
-{json.dumps(jd_structure, indent=2)}
-{folder_context}
-Analyze this document and categorize it.
-
-Document content:
----
-{truncated_text}
----
-
-IMPORTANT naming rules:
-- "document_type" should describe WHAT the document is (e.g., "Blood Test Results", "Employment Contract", "Insurance Card")
-- "issuer" should be the organization/entity that CREATED or ISSUED the document (e.g., "Charité Hospital", "TK Insurance", "AutoScout24")
-- Do NOT use the document subject's personal name as issuer (e.g., if it's a medical report FOR "John Smith", the issuer is the hospital, not John Smith)
-- "subject_person" should ONLY be filled if the document is about someone OTHER than the system owner (e.g., spouse's documents)
-- Use "00-09 System" / "09 Uncategorized" for research papers, academic articles, miscellaneous documents, or anything that doesn't clearly fit into the other categories
-
-Respond with ONLY valid JSON in this exact format (no other text):
-{{"jd_area": "one of the areas like 10-19 Finance", "jd_category": "one of the categories like 14 Receipts", "document_type": "specific type like Blood Test Results or Employment Contract", "issuer": "organization that created/issued the document", "subject_person": "only if document is about someone other than system owner, otherwise null", "tags": ["tag1", "tag2"], "confidence": "high/medium/low", "summary": "One sentence summary", "date_mentioned": "YYYY-MM-DD or null", "entities": ["organization names", "relevant identifiers"]}}"""
+    # Build prompt using shared helper
+    prompt = build_categorization_prompt(text, jd_areas, folder_hint, max_chars=6000)
 
     try:
         # Use Claude Code CLI with --print flag for non-interactive output
@@ -404,21 +433,7 @@ Respond with ONLY valid JSON in this exact format (no other text):
         if result.returncode != 0:
             raise Exception(f"Claude Code failed: {result.stderr}")
 
-        result_text = result.stdout.strip()
-
-        # Parse JSON from response
-        if "```json" in result_text:
-            result_text = result_text.split("```json")[1].split("```")[0]
-        elif "```" in result_text:
-            result_text = result_text.split("```")[1].split("```")[0]
-
-        # Try to find JSON in the response
-        import re
-        json_match = re.search(r'\{[^{}]*\}', result_text, re.DOTALL)
-        if json_match:
-            result_text = json_match.group()
-
-        return json.loads(result_text)
+        return parse_json_response(result.stdout.strip())
 
     except FileNotFoundError:
         logger.warning("Claude Code CLI not found. Install with: npm install -g @anthropic-ai/claude-code")
@@ -449,60 +464,8 @@ def categorize_with_llm(text: str, jd_areas: dict = None, api_key: Optional[str]
 
         client = anthropic.Anthropic(api_key=api_key)
 
-        # Truncate text if too long
-        max_chars = 8000
-        truncated_text = text[:max_chars] if len(text) > max_chars else text
-
-        # Build JD structure for prompt
-        jd_structure = {}
-        for area, categories in jd_areas.items():
-            if area == "00-09 System":
-                # Only include Uncategorized from System area
-                jd_structure[area] = ["09 Uncategorized"]
-            elif area != "90-99 Archive":
-                jd_structure[area] = list(categories.keys())
-
-        # Add folder context if provided
-        folder_context = ""
-        if folder_hint:
-            folder_context = f"""
-IMPORTANT CONTEXT: This file came from a folder named "{folder_hint}".
-The folder name is a strong hint about what type of documents these are (e.g., "Salary Slips" suggests employment/payslips, "Medical Reports" suggests medical records).
-Use this context to help categorize the document appropriately.
-"""
-
-        prompt = f"""You are a document categorization assistant using the Johnny.Decimal system.
-
-Available Johnny.Decimal areas and categories:
-{json.dumps(jd_structure, indent=2)}
-{folder_context}
-Analyze this document and categorize it.
-
-Document content:
----
-{truncated_text}
----
-
-IMPORTANT naming rules:
-- "document_type" should describe WHAT the document is (e.g., "Blood Test Results", "Employment Contract", "Insurance Card")
-- "issuer" should be the organization/entity that CREATED or ISSUED the document (e.g., "Charité Hospital", "TK Insurance", "AutoScout24")
-- Do NOT use the document subject's personal name as issuer (e.g., if it's a medical report FOR "John Smith", the issuer is the hospital, not John Smith)
-- "subject_person" should ONLY be filled if the document is about someone OTHER than the system owner (e.g., spouse's documents)
-- Use "00-09 System" / "09 Uncategorized" for research papers, academic articles, miscellaneous documents, or anything that doesn't clearly fit into the other categories
-
-Respond with ONLY valid JSON in this exact format:
-{{
-    "jd_area": "one of the areas like 10-19 Finance",
-    "jd_category": "one of the categories like 14 Receipts",
-    "document_type": "specific type like Blood Test Results or Employment Contract",
-    "issuer": "organization that created/issued the document",
-    "subject_person": "only if document is about someone other than system owner, otherwise null",
-    "tags": ["tag1", "tag2", "tag3"],
-    "confidence": "high/medium/low",
-    "summary": "One sentence summary of the document",
-    "date_mentioned": "YYYY-MM-DD if a date is found, null otherwise",
-    "entities": ["organization names", "relevant identifiers"]
-}}"""
+        # Build prompt using shared helper (API can handle more chars)
+        prompt = build_categorization_prompt(text, jd_areas, folder_hint, max_chars=8000)
 
         response = client.messages.create(
             model=CONFIG["ai"]["model"],
@@ -510,15 +473,7 @@ Respond with ONLY valid JSON in this exact format:
             messages=[{"role": "user", "content": prompt}]
         )
 
-        result_text = response.content[0].text.strip()
-
-        # Parse JSON from response
-        if "```json" in result_text:
-            result_text = result_text.split("```json")[1].split("```")[0]
-        elif "```" in result_text:
-            result_text = result_text.split("```")[1].split("```")[0]
-
-        return json.loads(result_text)
+        return parse_json_response(response.content[0].text.strip())
 
     except Exception as e:
         logger.error(f"LLM categorization failed: {e}")
@@ -601,15 +556,14 @@ def slugify(text: str, max_length: int = 30) -> str:
     return slug[:max_length] if slug else "unknown"
 
 
-def generate_filename(original_name: str, analysis: dict, jd_id: str = "", year: str = "") -> str:
-    """Generate a descriptive filename based on analysis.
+def build_descriptor(analysis: dict, original_name: str, max_length: int = 60) -> str:
+    """Build a descriptor string from issuer, document_type, and subject_person.
 
-    Format: {JD_ID} {Issuer} {Document_Type} {Year}.ext
-    Example: 14.01 Amazon Laptop Receipt 2024.pdf
+    Shared helper used by both generate_filename() and generate_folder_descriptor().
+
+    Format: "{Issuer} {Document_Type} ({Subject_Person})"
+    Example: "Charité Blood Test Results" or "TK Insurance Card (Spouse)"
     """
-    suffix = Path(original_name).suffix
-
-    # Get issuer and document type from analysis
     issuer = analysis.get("issuer", "")
     document_type = analysis.get("document_type", "")
     subject_person = analysis.get("subject_person")
@@ -646,8 +600,20 @@ def generate_filename(original_name: str, analysis: dict, jd_id: str = "", year:
             stem = stem[9:] if len(stem) > 9 else stem
         descriptor = stem.replace("_", " ").title()
 
-    # Limit descriptor length for filesystem compatibility
-    descriptor = descriptor[:50]
+    # Limit length for filesystem compatibility
+    return descriptor[:max_length]
+
+
+def generate_filename(original_name: str, analysis: dict, jd_id: str = "", year: str = "") -> str:
+    """Generate a descriptive filename based on analysis.
+
+    Format: {JD_ID} {Issuer} {Document_Type} {Year}.ext
+    Example: 14.01 Amazon Laptop Receipt 2024.pdf
+    """
+    suffix = Path(original_name).suffix
+
+    # Build descriptor using shared helper (limit to 50 chars for filenames)
+    descriptor = build_descriptor(analysis, original_name, max_length=50)
 
     # Use provided year or extract from analysis
     if not year:
@@ -694,44 +660,8 @@ def generate_folder_descriptor(analysis: dict, original_name: str) -> str:
 
     Falls back to issuer-only or document-type-only if one is missing.
     """
-    issuer = analysis.get("issuer", "")
-    document_type = analysis.get("document_type", "")
-    subject_person = analysis.get("subject_person")
-
-    # Clean up issuer - remove trailing punctuation, normalize spaces
-    if issuer:
-        issuer = issuer.strip().rstrip(".,;:")
-        # Replace problematic filesystem chars
-        issuer = issuer.replace("/", "_").replace("\\", "_").replace(":", "_")
-
-    # Clean up document type
-    if document_type:
-        document_type = document_type.strip().rstrip(".,;:")
-        document_type = document_type.replace("/", "_").replace("\\", "_").replace(":", "_")
-
-    # Build the descriptor
-    parts = []
-    if issuer:
-        parts.append(issuer)
-    if document_type:
-        parts.append(document_type)
-
-    # Add subject person if it's someone other than the system owner
-    if subject_person and subject_person.lower() not in ["null", "none", ""]:
-        parts.append(f"({subject_person})")
-
-    if parts:
-        descriptor = " ".join(parts)
-    else:
-        # Fallback: use original filename stem
-        stem = Path(original_name).stem
-        # Remove date prefix if present (e.g., "20241220_something")
-        if len(stem) > 8 and stem[:8].isdigit():
-            stem = stem[9:] if len(stem) > 9 else stem
-        descriptor = stem.replace("_", " ").title()
-
-    # Limit length for filesystem compatibility
-    return descriptor[:60]
+    # Use shared helper (limit to 60 chars for folder names)
+    return build_descriptor(analysis, original_name, max_length=60)
 
 
 def extract_year(analysis: dict) -> str:
@@ -882,7 +812,10 @@ def save_processed_files(output_dir: str, processed: dict):
 
 
 # ==============================================================================
-# SEARCH INDEX
+# SEARCH INDEX (PARTIALLY IMPLEMENTED)
+# NOTE: This index is populated during organize_file() but not yet used by UI.
+# The .search_index.json file accumulates document metadata for future search.
+# TODO: Implement search functionality in UI that reads this index.
 # ==============================================================================
 
 def get_search_index_path(output_dir: str) -> Path:
@@ -890,8 +823,18 @@ def get_search_index_path(output_dir: str) -> Path:
     return Path(output_dir) / ".search_index.json"
 
 
+def save_search_index(output_dir: str, index: list):
+    """Save the search index to JSON."""
+    index_path = get_search_index_path(output_dir)
+    with open(index_path, 'w') as f:
+        json.dump(index, f, indent=2, ensure_ascii=False)
+
+
 def load_search_index(output_dir: str) -> list:
-    """Load the search index from JSON."""
+    """Load the search index from JSON.
+
+    NOTE: Currently unused - kept for future search implementation.
+    """
     index_path = get_search_index_path(output_dir)
     if index_path.exists():
         try:
@@ -900,13 +843,6 @@ def load_search_index(output_dir: str) -> list:
         except (json.JSONDecodeError, IOError):
             return []
     return []
-
-
-def save_search_index(output_dir: str, index: list):
-    """Save the search index to JSON."""
-    index_path = get_search_index_path(output_dir)
-    with open(index_path, 'w') as f:
-        json.dump(index, f, indent=2, ensure_ascii=False)
 
 
 def add_to_search_index(output_dir: str, doc_path: str, original_name: str,

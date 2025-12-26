@@ -1078,8 +1078,6 @@ if "browse_recursive" not in st.session_state:
     st.session_state.browse_recursive = True
 if "checkbox_key_version" not in st.session_state:
     st.session_state.checkbox_key_version = 0
-if "view_mode" not in st.session_state:
-    st.session_state.view_mode = "list"  # "list" or "grid"
 if "recent_files" not in st.session_state:
     st.session_state.recent_files = []  # Track recently processed files
 if "nav_history" not in st.session_state:
@@ -1198,28 +1196,32 @@ def filter_files(files: list, query: str, field: str) -> list:
     return filtered
 
 
-def get_all_organized_files(output_dir: str) -> list[tuple[Path, dict | None]]:
-    """Get all organized files with their metadata for batch reanalysis."""
-    output = Path(output_dir)
-    if not output.exists():
-        return []
+def save_uploaded_files(uploaded_files, inbox_dir: str) -> int:
+    """Save uploaded files to inbox, handling duplicate filenames.
 
-    files = []
+    Returns the number of files successfully uploaded.
+    """
+    if not uploaded_files:
+        return 0
 
-    for f in output.rglob("*"):
-        if f.is_file() and f.suffix.lower() in SUPPORTED_FORMATS:
-            # Load metadata if exists
-            meta_path = f.with_suffix(f.suffix + ".meta.json")
-            meta = None
-            if meta_path.exists():
-                try:
-                    with open(meta_path, 'r') as mf:
-                        meta = json.load(mf)
-                except (json.JSONDecodeError, IOError):
-                    pass
-            files.append((f, meta))
+    inbox_path = Path(inbox_dir)
+    inbox_path.mkdir(parents=True, exist_ok=True)
 
-    return files
+    uploaded_count = 0
+    for uploaded_file in uploaded_files:
+        dest = inbox_path / uploaded_file.name
+        # Handle duplicate filenames with counter suffix
+        counter = 1
+        while dest.exists():
+            stem = Path(uploaded_file.name).stem
+            suffix = Path(uploaded_file.name).suffix
+            dest = inbox_path / f"{stem}_{counter}{suffix}"
+            counter += 1
+        with open(dest, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        uploaded_count += 1
+
+    return uploaded_count
 
 
 def display_pdf(file_path: Path):
@@ -1581,21 +1583,8 @@ def main():
                 key="sidebar_uploader",
                 label_visibility="collapsed"
             )
-            if uploaded_files:
-                inbox_path = Path(inbox_dir)
-                inbox_path.mkdir(parents=True, exist_ok=True)
-                uploaded_count = 0
-                for uploaded_file in uploaded_files:
-                    dest = inbox_path / uploaded_file.name
-                    counter = 1
-                    while dest.exists():
-                        stem = Path(uploaded_file.name).stem
-                        suffix = Path(uploaded_file.name).suffix
-                        dest = inbox_path / f"{stem}_{counter}{suffix}"
-                        counter += 1
-                    with open(dest, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
-                    uploaded_count += 1
+            uploaded_count = save_uploaded_files(uploaded_files, inbox_dir)
+            if uploaded_count:
                 st.success(f"Uploaded {uploaded_count} files!")
                 st.rerun()
 
@@ -1645,23 +1634,8 @@ def main():
                 type=['pdf', 'png', 'jpg', 'jpeg', 'tiff', 'bmp', 'docx', 'txt'],
                 key="file_uploader_empty"
             )
-
-            if uploaded_files:
-                inbox_path = Path(inbox_dir)
-                inbox_path.mkdir(parents=True, exist_ok=True)
-                uploaded_count = 0
-                for uploaded_file in uploaded_files:
-                    dest = inbox_path / uploaded_file.name
-                    # Handle duplicates
-                    counter = 1
-                    while dest.exists():
-                        stem = Path(uploaded_file.name).stem
-                        suffix = Path(uploaded_file.name).suffix
-                        dest = inbox_path / f"{stem}_{counter}{suffix}"
-                        counter += 1
-                    with open(dest, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
-                    uploaded_count += 1
+            uploaded_count = save_uploaded_files(uploaded_files, inbox_dir)
+            if uploaded_count:
                 st.success(f"Uploaded {uploaded_count} files to inbox!")
                 st.rerun()
 
