@@ -1,6 +1,6 @@
 # Document Organizer
 
-Automatically organize your scanned documents into folders with AI-powered categorization using the Johnny.Decimal system.
+Automatically organize your scanned documents into folders with AI-powered categorization using the [Johnny.Decimal](https://johnnydecimal.com/) system.
 
 ## How It Works
 
@@ -25,41 +25,47 @@ Automatically organize your scanned documents into folders with AI-powered categ
 4. **Files are moved** to organized folders with descriptive names
 5. **Metadata files** (.meta.json) are created with tags and summaries
 
+## Key Features
+
+- **Privacy-First**: All processing happens locally. Only extracted text is sent to AI providers
+- **Multiple AI Providers**: Claude, GPT-4, AWS Bedrock, Ollama (100% offline), or keyword-only mode
+- **Personalized JD System**: AI-powered interview builds a Johnny.Decimal structure tailored to your life
+- **Web UI**: macOS Finder-inspired gallery view with drag-and-drop upload
+- **Duplicate Detection**: SHA256 content hashing prevents filing the same document twice
+- **Multi-Format Support**: PDF, images (PNG, JPG, TIFF), Office docs (DOCX, XLSX, PPTX), and text files
+
 ## Quick Start
 
-### Option 1: One-Line Install (macOS - Recommended)
+### Option 1: One-Line Install (macOS/Linux)
 
 ```bash
-# Clone and run the installer
 git clone https://github.com/batyrch/document_organiser
 cd document_organiser
 ./install.sh
 ```
 
-The installer:
-- Creates a Python virtual environment with all dependencies
-- Installs the `docorg` command to launch the app
-- Optionally creates a macOS app for Dock/Finder
+The installer creates a virtual environment, installs dependencies, and sets up the `docorg` command.
 
-**To run after installation:**
+**Run after installation:**
 ```bash
 docorg
 ```
 
-### Option 2: Manual Installation (Developers)
+### Option 2: Manual Installation
 
 ```bash
-# 1. Clone the repository
+# Clone the repository
 git clone https://github.com/batyrch/document_organiser
 cd document_organiser
 
-# 2. Install dependencies
+# Create virtual environment (recommended)
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 
-# 3. Set your API key (optional - Claude Code CLI can use Max subscription)
-export ANTHROPIC_API_KEY="your-key-here"
-
-# 4. Run the app
+# Run the app
 streamlit run ui.py
 ```
 
@@ -67,9 +73,20 @@ streamlit run ui.py
 
 ```bash
 docker-compose up ui
+# Access at http://localhost:8501
 ```
 
-Visit the **[Document Organizer Website](https://batyrch.github.io/document_organiser)** for interactive installation instructions.
+### AI Provider Setup
+
+| Provider | Setup |
+|----------|-------|
+| **Claude Code CLI** | Works with Claude Max subscription - no API key needed |
+| **Anthropic API** | `export ANTHROPIC_API_KEY="your-key"` |
+| **OpenAI API** | `export OPENAI_API_KEY="your-key"` |
+| **Ollama** | Install [Ollama](https://ollama.ai), run `ollama pull llama3.2` |
+| **Keywords** | No setup - pattern matching only |
+
+Visit **[batyrch.github.io/document_organiser](https://batyrch.github.io/document_organiser)** for interactive installation guide.
 
 ## Configuration
 
@@ -328,9 +345,17 @@ python document_organizer.py --rebuild-index
 6. **Duplicate detection**: Run `--rebuild-index` after manually adding files to ensure duplicates are caught
 7. **Backfill extracted text**: If older files are missing extracted text, use Browse Mode → Select All → Reanalyze Selected (only processes files without text)
 
-## Website & Privacy
+## Requirements
 
-- **Landing Page**: [batyrch.github.io/document_organiser](https://batyrch.github.io/document_organiser)
-- **Privacy Policy**: [Privacy](https://batyrch.github.io/document_organiser/privacy.html)
+- Python 3.10+
+
+## Privacy
 
 All document processing happens locally on your machine. Only extracted text is sent to AI providers (if using cloud AI). Use Ollama for 100% offline operation.
+
+- **Website**: [batyrch.github.io/document_organiser](https://batyrch.github.io/document_organiser)
+- **Privacy Policy**: [batyrch.github.io/document_organiser/privacy.html](https://batyrch.github.io/document_organiser/privacy.html)
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
