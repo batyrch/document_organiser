@@ -1963,7 +1963,7 @@ def render_settings_page():
         st.info("Welcome! Please configure your settings below to get started.")
 
     # Create tabs for different settings categories
-    tab_dirs, tab_ai, tab_about = st.tabs(["Directories", "AI Provider", "About"])
+    tab_dirs, tab_ai, tab_jd, tab_about = st.tabs(["Directories", "AI Provider", "JD System", "About"])
 
     with tab_dirs:
         icon_subheader("folder-tree", "Directory Configuration")
@@ -2169,6 +2169,9 @@ def render_settings_page():
 
             settings.update(updates)
             st.success("AI settings saved!")
+
+    with tab_jd:
+        render_jd_system_tab(settings)
 
     with tab_about:
         icon_subheader("info", "About Document Organizer")

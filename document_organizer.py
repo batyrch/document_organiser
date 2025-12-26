@@ -312,25 +312,45 @@ def scan_jd_folders(output_dir: str) -> dict:
 
 
 def get_merged_jd_areas(output_dir: str = None) -> dict:
-    """Get JD_AREAS merged with any user-created folders from filesystem.
+    """Get JD areas, preferring dynamic jdex.json over hardcoded defaults.
 
-    Scans the output directory for user-created JD folders and merges them
-    with the predefined JD_AREAS. User-created folders take precedence
-    (e.g., if user renamed a category, the new name is used).
+    Priority order:
+    1. Dynamic jdex.json (if exists) - fully customized by user
+    2. Hardcoded JD_AREAS merged with filesystem folders
 
     Args:
-        output_dir: Optional path to scan for user-created folders.
+        output_dir: Optional path to the JD output directory.
                    If None, returns just the predefined JD_AREAS.
 
     Returns:
-        Dict with same structure as JD_AREAS, including user-created folders.
+        Dict with same structure as JD_AREAS, for use with classification.
     """
     import copy
-    merged = copy.deepcopy(JD_AREAS)
 
     if not output_dir:
-        return merged
+        return copy.deepcopy(JD_AREAS)
 
+    # Try to load dynamic JD system first
+    try:
+        from jd_system import get_jd_areas as get_dynamic_areas
+        dynamic_areas = get_dynamic_areas(output_dir, fallback_areas=None)
+        if dynamic_areas:
+            # Merge with filesystem folders (user may have created new ones)
+            discovered = scan_jd_folders(output_dir)
+            for disc_area, disc_categories in discovered.items():
+                if disc_area not in dynamic_areas:
+                    dynamic_areas[disc_area] = disc_categories
+                else:
+                    # Merge categories
+                    for disc_cat, disc_config in disc_categories.items():
+                        if disc_cat not in dynamic_areas[disc_area]:
+                            dynamic_areas[disc_area][disc_cat] = disc_config
+            return dynamic_areas
+    except ImportError:
+        pass  # jd_system not available, use legacy
+
+    # Fallback to legacy behavior: merge hardcoded with filesystem
+    merged = copy.deepcopy(JD_AREAS)
     discovered = scan_jd_folders(output_dir)
 
     for disc_area, disc_categories in discovered.items():

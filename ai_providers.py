@@ -66,6 +66,20 @@ class AIProvider(ABC):
         """Check if this provider is configured and available."""
         pass
 
+    def chat(self, system_prompt: str, messages: list) -> Optional[str]:
+        """
+        Have a multi-turn conversation with the AI.
+
+        Args:
+            system_prompt: The system prompt to guide the AI
+            messages: List of {"role": "user"|"assistant", "content": str}
+
+        Returns:
+            The AI's response text or None on failure
+        """
+        # Default implementation - subclasses should override
+        return None
+
     def get_categorization_prompt(self, text: str, jd_areas: dict) -> str:
         """Generate the categorization prompt for any provider."""
         # Truncate text if too long
@@ -171,6 +185,29 @@ class AnthropicProvider(AIProvider):
             print(f"Anthropic API error: {e}")
             return None
 
+    def chat(self, system_prompt: str, messages: list) -> Optional[str]:
+        """Have a multi-turn conversation with Claude."""
+        if not self.is_available():
+            return None
+
+        try:
+            import anthropic
+
+            client = anthropic.Anthropic(api_key=self.api_key)
+
+            response = client.messages.create(
+                model=self.model,
+                max_tokens=2000,
+                system=system_prompt,
+                messages=messages
+            )
+
+            return response.content[0].text
+
+        except Exception as e:
+            print(f"Anthropic chat error: {e}")
+            return None
+
 
 class ClaudeCodeProvider(AIProvider):
     """Claude Code CLI provider (uses Max subscription)."""
@@ -255,6 +292,35 @@ class OpenAIProvider(AIProvider):
             return None
         except Exception as e:
             print(f"OpenAI API error: {e}")
+            return None
+
+    def chat(self, system_prompt: str, messages: list) -> Optional[str]:
+        """Have a multi-turn conversation with GPT."""
+        if not self.is_available():
+            return None
+
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(api_key=self.api_key)
+
+            # Build messages with system prompt
+            chat_messages = [{"role": "system", "content": system_prompt}]
+            chat_messages.extend(messages)
+
+            response = client.chat.completions.create(
+                model=self.model,
+                max_tokens=2000,
+                messages=chat_messages
+            )
+
+            return response.choices[0].message.content
+
+        except ImportError:
+            print("OpenAI package not installed. Run: pip install openai")
+            return None
+        except Exception as e:
+            print(f"OpenAI chat error: {e}")
             return None
 
 
