@@ -1012,7 +1012,9 @@ def render_preview(file_path: Path | None, extracted_text: str = "") -> None:
         if not extracted_text:
             st.warning("No extracted text available. Click 'Reanalyze' to extract text.")
         else:
-            st.text_area("Extracted Text", extracted_text, height=400, disabled=True, key="preview_text")
+            # Use file path in key to ensure text updates when file changes
+            text_key = f"preview_text_{hash(str(file_path))}"
+            st.text_area("Extracted Text", extracted_text, height=400, disabled=True, key=text_key)
 
 
 def render_classification(analysis: dict | None, file_path: Path | None) -> None:
