@@ -262,32 +262,45 @@ streamlit run ui.py
 - **Breadcrumb navigation**: Shows current path hierarchy in browse mode
 - **Navigation bar**: ◀ Back | ▶ Forward | ▲ Up | ▼ Down buttons with history
 
+**iOS-Style Two-Mode Selection (like iOS Files app):**
+- **Browse Mode** (default): Tap file → opens preview panel with classification form
+  - No checkboxes visible
+  - Single-file actions: Process & File, Skip, Previous, Delete, Reveal
+- **Selection Mode**: Tap "Select" button → enters selection mode
+  - Checkboxes appear next to each file
+  - Tap file → toggles selection (not preview)
+  - Toolbar Actions panel shows: Move, Reanalyze, Delete, Reveal
+  - Select All / Clear buttons available
+  - Tap "Done" → exits selection mode and clears selection
+- Based on [Apple iOS Files app pattern](https://support.apple.com/guide/iphone/organize-files-and-folders-iphab82e0798/ios)
+
 **File Management:**
 - **Grid/List view toggle**: Switch between thumbnail grid and list view
 - File list with metadata status ([OK] has metadata, [...] pending)
 - **Colored tag chips**: Tags displayed with category-based colors (TAG_COLORS mapping)
-- Checkbox selection for bulk operations (Select All uses versioned keys for proper state sync)
 - Search/filter by metadata (issuer, document_type, tags, category, text)
-- Navigation (Prev/Next buttons, file counter)
+- Navigation (Prev/Next buttons, file counter) - in browse mode only
 - **Thumbnails**: PDF and image thumbnails in grid view (requires pymupdf)
 
-**Document View:**
+**Document View (Browse Mode only):**
 - PDF preview (embedded viewer)
 - Image preview
 - Extracted text display tab
 - AI analysis panel with all metadata fields
 
-**Classification:**
+**Classification (Browse Mode only):**
 - AI suggestion pre-filled in form
 - Manual override for area, category, issuer, document type, date, tags
 - **Destination preview**: Shows where file will be organized before filing
 - Re-analyze button to re-run AI on current file
 
-**Bulk Actions:**
-- Select All / Clear Selection
-- Move Selected - move multiple files to chosen category (auto-extracts text if missing)
-- Reanalyze Selected - re-run text extraction on files missing `extracted_text` (skips files that already have text)
-- Delete Selected - remove selected files
+**Toolbar Actions (Selection Mode only):**
+- Select All / Clear buttons
+- Move - move selected files to chosen category (auto-extracts text if missing)
+- Reanalyze - re-run text extraction on files missing `extracted_text` (skips files that already have text)
+- Delete - remove selected files
+- Reveal - open in system file manager
+- All buttons disabled until files are selected
 
 **Text Extraction Behavior:**
 - **Process & File**: Automatically extracts text if not already done (prevents empty `extracted_text` in `.meta.json`)

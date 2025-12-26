@@ -136,6 +136,19 @@ Launch the UI with `streamlit run ui.py`
   - **Subfolder dropdown**: Navigate into subdirectories quickly
   - **Breadcrumb navigation**: Shows current path hierarchy
 
+### iOS-Style Selection (like iOS Files app)
+The UI uses a two-mode selection pattern inspired by iOS:
+
+- **Browse Mode** (default): Tap a file to preview it
+  - Shows document preview, AI analysis, and classification form
+  - Single-file actions: Process & File, Skip, Previous, Delete, Reveal
+
+- **Selection Mode**: Tap "Select" button to enter
+  - Checkboxes appear next to each file
+  - Tap files to select/deselect them
+  - Toolbar Actions: Move, Reanalyze, Delete, Reveal
+  - Tap "Done" to exit and clear selection
+
 ### Document Management
 - **Grid/List view toggle**: Switch between thumbnail grid and list view
 - File list with metadata status ([OK] has metadata, [...] pending)
@@ -144,17 +157,18 @@ Launch the UI with `streamlit run ui.py`
 - Extracted text display
 - AI analysis panel with all metadata fields
 
-### Classification
+### Classification (Browse Mode)
 - AI suggestion pre-filled in form
 - Manual override for area, category, issuer, document type, date, tags
 - **Destination preview**: Shows where file will be organized before filing
 - Re-analyze button for individual files
 
-### Bulk Operations
-- Select multiple files with checkboxes (Select All / Clear Selection)
-- Move Selected - batch move to chosen category (auto-extracts text if missing)
-- Reanalyze Selected - backfill missing extracted text (skips files that already have text)
-- Delete Selected - remove selected files
+### Toolbar Actions (Selection Mode)
+- **Select All / Clear**: Quick selection controls
+- **Move**: Batch move to chosen category (auto-extracts text if missing)
+- **Reanalyze**: Backfill missing extracted text (skips files that already have text)
+- **Delete**: Remove selected files
+- **Reveal**: Open in system file manager
 
 > **Note:** Reanalyze is safe to run on all files - it only processes files missing `extracted_text` in their metadata, preserving all other fields.
 
