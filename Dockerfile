@@ -25,10 +25,9 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Install system dependencies
+# Note: libgl1 replaces libgl1-mesa-glx in newer Debian (trixie+)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    tesseract-ocr \
-    tesseract-ocr-deu \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     poppler-utils \
     && rm -rf /var/lib/apt/lists/*
@@ -46,6 +45,11 @@ COPY ai_providers.py .
 COPY ui.py .
 COPY migrate_to_jd.py .
 COPY preview_renames.py .
+COPY settings.py .
+COPY icons.py .
+COPY jd_system.py .
+COPY jd_builder.py .
+COPY jd_prompts.py .
 COPY README.md .
 
 # Install the package with selected providers

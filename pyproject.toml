@@ -24,7 +24,7 @@ classifiers = [
 dependencies = [
     "docling>=2.0.0",
     "pdfplumber>=0.11.0",
-    "pytesseract>=0.3.10",
+    "pymupdf>=1.24.0",  # For PDF thumbnail generation in UI
     "python-dotenv>=1.0.0",
     "Pillow>=10.0.0",
     "streamlit>=1.40.0",
@@ -67,7 +67,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["document_organizer", "ai_providers", "ui", "migrate_to_jd", "preview_renames", "settings"]
+py-modules = ["document_organizer", "ai_providers", "ui", "migrate_to_jd", "preview_renames", "settings", "icons", "jd_system", "jd_builder", "jd_prompts"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
