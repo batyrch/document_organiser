@@ -219,12 +219,26 @@ class Settings:
 
     @property
     def output_dir(self) -> str:
-        """Get the output directory, with fallback to default."""
+        """Get the output directory.
+
+        Priority: Environment variable > Saved setting > Default
+        """
+        # Environment variable takes precedence (for Docker and CLI use)
+        env_output = os.environ.get("OUTPUT_DIR")
+        if env_output:
+            return env_output
         return self._settings.get("output_dir") or DEFAULT_SETTINGS["output_dir"]
 
     @property
     def inbox_dir(self) -> str:
-        """Get the inbox directory, deriving from output_dir if not set."""
+        """Get the inbox directory.
+
+        Priority: Environment variable > Saved setting > Derived from output_dir
+        """
+        # Environment variable takes precedence (for Docker and CLI use)
+        env_inbox = os.environ.get("INBOX_DIR")
+        if env_inbox:
+            return env_inbox
         inbox = self._settings.get("inbox_dir")
         if inbox:
             return inbox

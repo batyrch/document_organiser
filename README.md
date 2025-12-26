@@ -28,6 +28,44 @@ Automatically organize scanned documents using AI and the [Johnny.Decimal](https
 
 ## Quick Start
 
+### Option 1: Docker (Recommended)
+
+```bash
+git clone https://github.com/batyrch/document_organiser
+cd document_organiser
+
+# Run with access to your Documents folder
+DOCUMENTS_PATH=$HOME/Documents docker compose up ui
+```
+
+Open http://localhost:8501 and configure paths in Settings.
+
+#### Docker Access Options
+
+```bash
+# Mount a specific folder
+DOCUMENTS_PATH=/path/to/folder docker compose up ui
+
+# Mount entire home directory
+DOCUMENTS_PATH=$HOME docker compose up ui
+
+# Mount root filesystem (full access)
+DOCUMENTS_PATH=/ docker compose up ui
+
+# Windows (PowerShell)
+$env:DOCUMENTS_PATH=$env:USERPROFILE; docker compose up ui
+```
+
+#### With API Keys
+
+```bash
+DOCUMENTS_PATH=$HOME \
+ANTHROPIC_API_KEY=sk-ant-... \
+docker compose up ui
+```
+
+### Option 2: Local Install
+
 ```bash
 git clone https://github.com/batyrch/document_organiser
 cd document_organiser
@@ -108,7 +146,8 @@ PDF, PNG, JPG, TIFF, BMP, DOCX, PPTX, XLSX, TXT, HTML
 
 ## Requirements
 
-- Python 3.10+
+- **Docker** (recommended), or
+- **Python 3.10+** for local install
 
 ## Privacy
 

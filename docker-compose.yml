@@ -1,22 +1,24 @@
 # Document Organizer - Docker Compose Configuration
 #
-# Usage:
-#   # Start the UI (uses ./documents by default)
+# Quick Start:
 #   docker compose up ui
+#   # Then open http://localhost:8501 and configure paths in Settings
 #
-#   # Use a custom documents path:
-#   # macOS/Linux:
-#   #   DOCUMENTS_PATH=/path/to/documents docker compose up ui
+# Access Options:
+#   # Mount a specific folder:
+#   DOCUMENTS_PATH=/path/to/folder docker compose up ui
+#
+#   # Mount entire home directory:
+#   DOCUMENTS_PATH=$HOME docker compose up ui
+#
+#   # Mount root filesystem (full access to all files):
+#   DOCUMENTS_PATH=/ docker compose up ui
+#
 #   # Windows (PowerShell):
-#   #   $env:DOCUMENTS_PATH="C:\Users\you\Documents"; docker compose up ui
-#   # Windows (cmd):
-#   #   set DOCUMENTS_PATH=C:\Users\you\Documents && docker compose up ui
+#   $env:DOCUMENTS_PATH=$env:USERPROFILE; docker compose up ui
 #
-#   # Run preprocessing in background
+# Run preprocessing in background:
 #   docker compose up -d preprocess
-#
-#   # Run one-time processing
-#   docker compose run --rm organizer --once
 
 services:
   # Base service configuration (not run directly)
@@ -26,12 +28,17 @@ services:
       args:
         INSTALL_PROVIDERS: anthropic,openai
     volumes:
+      # Mount filesystem - set DOCUMENTS_PATH to control access scope
+      # Examples: DOCUMENTS_PATH=$HOME, DOCUMENTS_PATH=/, DOCUMENTS_PATH=/Users
       - ${DOCUMENTS_PATH:-./documents}:/documents
+      # Persist settings between container restarts
+      - docorg-settings:/home/appuser/.config/DocumentOrganizer
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - AI_PROVIDER=${AI_PROVIDER:-keywords}
+      - AI_PROVIDER=${AI_PROVIDER:-auto}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Docker paths - always use /documents (ignore local .env paths)
       - INBOX_DIR=/documents/inbox
       - OUTPUT_DIR=/documents/jd_documents
     restart: unless-stopped
@@ -64,7 +71,11 @@ services:
       - dev
     volumes:
       - ${DOCUMENTS_PATH:-./documents}:/documents
+      - docorg-settings:/home/appuser/.config/DocumentOrganizer
       - .:/app:ro
     command: ["ui"]
     ports:
       - "${UI_PORT:-8501}:8501"
+
+volumes:
+  docorg-settings:

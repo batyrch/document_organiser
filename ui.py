@@ -2153,18 +2153,60 @@ def render_settings_page():
     with tab_dirs:
         icon_subheader("folder-tree", "Directory Configuration")
 
+        # Detect if running in Docker
+        # Check multiple indicators: /.dockerenv, /proc/1/cgroup, or /documents with content
+        def check_docker():
+            if Path("/.dockerenv").exists():
+                return True
+            try:
+                with open("/proc/1/cgroup", "r") as f:
+                    if "docker" in f.read():
+                        return True
+            except:
+                pass
+            # Fallback: check if /documents exists and has content (mounted volume)
+            docs = Path("/documents")
+            if docs.exists():
+                try:
+                    return any(docs.iterdir())
+                except:
+                    pass
+            return False
+
+        is_docker = check_docker()
+
+        if is_docker:
+            st.info("""
+            **Running in Docker** - Your mounted folder is available at `/documents`.
+            Set paths relative to this mount point (e.g., `/documents/jd_documents`).
+            """)
+            # Show available folders in /documents
+            docs_path = Path("/documents")
+            subdirs = sorted([d.name for d in docs_path.iterdir() if d.is_dir()])[:20]
+            if subdirs:
+                with st.expander("Browse available folders in /documents"):
+                    for d in subdirs:
+                        st.code(f"/documents/{d}", language=None)
+
         st.markdown("""
         Configure where your documents are stored. The **Output Directory** is the root
         of your Johnny.Decimal folder structure. The **Inbox** is where you place new
         documents for processing.
         """)
 
-        # Output directory
+        # Output directory - use Docker-appropriate defaults
         current_output = settings.get("output_dir", "")
+        default_output_placeholder = "/documents/jd_documents" if is_docker else str(Path.home() / "Documents" / "jd_documents")
+
+        # If in Docker and current path doesn't start with /documents, suggest reset
+        if is_docker and current_output and not current_output.startswith("/documents"):
+            st.warning(f"Current path `{current_output}` is not accessible in Docker. Use `/documents/...` paths.")
+            current_output = ""  # Clear invalid path
+
         new_output = st.text_input(
             "Output Directory (JD Root)",
             value=current_output,
-            placeholder=str(Path.home() / "Documents" / "jd_documents"),
+            placeholder=default_output_placeholder,
             help="Root folder for your organized documents"
         )
 

@@ -38,39 +38,30 @@ RUN useradd --create-home --shell /bin/bash appuser
 # Set working directory
 WORKDIR /app
 
-# Copy project files
-COPY pyproject.toml .
-COPY document_organizer.py .
-COPY ai_providers.py .
-COPY ui.py .
-COPY migrate_to_jd.py .
-COPY preview_renames.py .
-COPY settings.py .
-COPY icons.py .
-COPY jd_system.py .
-COPY jd_builder.py .
-COPY jd_prompts.py .
-COPY README.md .
+# Copy project files and set ownership to appuser
+COPY --chown=appuser:appuser pyproject.toml .
+COPY --chown=appuser:appuser document_organizer.py .
+COPY --chown=appuser:appuser ai_providers.py .
+COPY --chown=appuser:appuser ui.py .
+COPY --chown=appuser:appuser migrate_to_jd.py .
+COPY --chown=appuser:appuser preview_renames.py .
+COPY --chown=appuser:appuser settings.py .
+COPY --chown=appuser:appuser icons.py .
+COPY --chown=appuser:appuser jd_system.py .
+COPY --chown=appuser:appuser jd_builder.py .
+COPY --chown=appuser:appuser jd_prompts.py .
+COPY --chown=appuser:appuser README.md .
 
 # Install the package with selected providers
 RUN pip install --upgrade pip && \
     pip install -e ".[${INSTALL_PROVIDERS}]"
 
-# Create documents directory
-RUN mkdir -p /documents && chown appuser:appuser /documents
+# Create documents directory and config directory for settings
+RUN mkdir -p /documents && chown appuser:appuser /documents && \
+    mkdir -p /home/appuser/.config/DocumentOrganizer && \
+    chown -R appuser:appuser /home/appuser/.config
 
-# Switch to non-root user
-USER appuser
-
-# Default environment variables
-ENV INBOX_DIR=/documents/inbox \
-    OUTPUT_DIR=/documents/jd_documents \
-    LOG_LEVEL=INFO
-
-# Expose Streamlit port
-EXPOSE 8501
-
-# Create entrypoint script (POSIX-compatible, no bash-specific syntax)
+# Create entrypoint script (POSIX-compatible, before switching to non-root user)
 RUN printf '%s\n' \
     '#!/bin/sh' \
     'set -e' \
@@ -92,6 +83,17 @@ RUN printf '%s\n' \
     '        ;;' \
     'esac' \
     > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+# Switch to non-root user
+USER appuser
+
+# Default environment variables
+ENV INBOX_DIR=/documents/inbox \
+    OUTPUT_DIR=/documents/jd_documents \
+    LOG_LEVEL=INFO
+
+# Expose Streamlit port
+EXPOSE 8501
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["--once"]
