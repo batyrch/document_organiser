@@ -70,27 +70,28 @@ ENV INBOX_DIR=/documents/inbox \
 # Expose Streamlit port
 EXPOSE 8501
 
-# Entrypoint script
-COPY --chown=appuser:appuser <<'EOF' /app/entrypoint.sh
-#!/bin/bash
-set -e
-
-if [ "$1" = "ui" ]; then
-    # Run Streamlit UI
-    exec streamlit run ui.py --server.address=0.0.0.0 --server.port=8501
-elif [ "$1" = "watch" ]; then
-    # Run in watch mode
-    exec python document_organizer.py "${@:2}"
-elif [ "$1" = "preprocess" ]; then
-    # Run preprocessing
-    exec python document_organizer.py --preprocess "${@:2}"
-else
-    # Default: run document organizer with passed arguments
-    exec python document_organizer.py "$@"
-fi
-EOF
-
-RUN chmod +x /app/entrypoint.sh
+# Create entrypoint script (POSIX-compatible, no bash-specific syntax)
+RUN printf '%s\n' \
+    '#!/bin/sh' \
+    'set -e' \
+    '' \
+    'case "$1" in' \
+    '    ui)' \
+    '        exec streamlit run ui.py --server.address=0.0.0.0 --server.port=8501' \
+    '        ;;' \
+    '    watch)' \
+    '        shift' \
+    '        exec python document_organizer.py "$@"' \
+    '        ;;' \
+    '    preprocess)' \
+    '        shift' \
+    '        exec python document_organizer.py --preprocess "$@"' \
+    '        ;;' \
+    '    *)' \
+    '        exec python document_organizer.py "$@"' \
+    '        ;;' \
+    'esac' \
+    > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["--once"]

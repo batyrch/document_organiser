@@ -1,8 +1,16 @@
 # Document Organizer - Docker Compose Configuration
 #
 # Usage:
-#   # Start the UI
+#   # Start the UI (uses ./documents by default)
 #   docker compose up ui
+#
+#   # Use a custom documents path:
+#   # macOS/Linux:
+#   #   DOCUMENTS_PATH=/path/to/documents docker compose up ui
+#   # Windows (PowerShell):
+#   #   $env:DOCUMENTS_PATH="C:\Users\you\Documents"; docker compose up ui
+#   # Windows (cmd):
+#   #   set DOCUMENTS_PATH=C:\Users\you\Documents && docker compose up ui
 #
 #   # Run preprocessing in background
 #   docker compose up -d preprocess
