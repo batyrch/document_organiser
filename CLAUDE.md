@@ -17,8 +17,12 @@ document_organiser/
 ├── jd_prompts.py           # AI prompts for JD system generation
 ├── icons.py                # Lucide SVG icons for UI
 ├── config.yaml             # Configuration (paths, AI model, logging)
+├── .env.example            # Environment variables template
+├── .env                    # Local environment config (not in git)
 ├── requirements.txt        # Python dependencies
-└── install.sh              # macOS/Linux installer
+├── install.sh              # macOS/Linux installer
+├── Dockerfile              # Container build
+└── docker-compose.yml      # Docker orchestration
 ```
 
 ## Core Modules
@@ -58,17 +62,26 @@ Pluggable AI backend system.
 - `categorize_document()` - Categorize with automatic fallback
 
 ### settings.py
-Platform-specific settings with secure keychain storage.
+Platform-specific settings with secure keychain storage. Loads `.env` automatically.
+
+**Configuration Priority** (highest first):
+1. Environment variables (from `.env` or shell)
+2. Saved settings (JSON file)
+3. Defaults
 
 **Storage Locations:**
 - macOS: `~/Library/Application Support/DocumentOrganizer/settings.json`
 - Linux: `~/.config/DocumentOrganizer/settings.json`
 - API keys: OS keychain (not in JSON)
 
+**Key Properties:**
+- `Settings.output_dir` - Resolves OUTPUT_DIR env var > saved setting > default
+- `Settings.inbox_dir` - Resolves INBOX_DIR env var > saved setting > default
+- `Settings.get_effective_provider()` - Auto-detect best AI provider
+
 **Key Functions:**
 - `get_settings()` - Global Settings instance
 - `Settings.get()` / `Settings.set()` - Read/write settings
-- `Settings.get_effective_provider()` - Auto-detect best AI provider
 
 ### jd_system.py
 Dynamic JD structure management.
@@ -123,7 +136,24 @@ Example: `10-19 Finance/14 Receipts/14.01 Amazon Laptop Receipt 2024.pdf`
 
 ## Configuration
 
-`config.yaml`:
+### .env (Recommended)
+```bash
+# Document paths
+OUTPUT_DIR=~/Documents/jd_documents
+INBOX_DIR=~/Documents/jd_documents/00-09 System/01 Inbox
+
+# AI provider: auto, anthropic, openai, ollama, claude-code, keywords
+AI_PROVIDER=auto
+
+# API keys
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+
+# Logging
+LOG_LEVEL=INFO
+```
+
+### config.yaml
 ```yaml
 paths:
   output_dir: ~/Documents/jd_documents
@@ -152,17 +182,41 @@ Each document gets a `.meta.json` sidecar:
 
 ## Running
 
+### Option 1: Docker
 ```bash
-# Install
+# With .env file (recommended)
+cp .env.example .env  # Edit with your settings
+DOCUMENTS_PATH=$HOME docker compose up ui
+
+# Open http://localhost:8501
+```
+
+### Option 2: Local Python with .env
+```bash
+# Setup
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env  # Edit with your settings
+
+# Run
+streamlit run ui.py
+```
+
+### Option 3: Install Script
+```bash
 ./install.sh
-
-# Launch UI
 docorg
-# or: streamlit run ui.py
+```
 
-# Preprocess inbox
+### CLI Commands
+```bash
+# Preprocess inbox (extract + analyze, keep in inbox)
 python document_organizer.py --preprocess --once
 
-# Auto-organize
+# Auto-organize (extract, analyze, and move)
 python document_organizer.py --once
+
+# Rebuild duplicate detection index
+python document_organizer.py --rebuild-index
 ```

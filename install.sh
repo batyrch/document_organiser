@@ -58,12 +58,18 @@ mkdir -p "$BIN_DIR"
 
 # Copy application files
 echo "Copying application files..."
-for file in ui.py document_organizer.py ai_providers.py settings.py device_auth.py config.yaml requirements.txt; do
+for file in ui.py document_organizer.py ai_providers.py settings.py device_auth.py icons.py jd_system.py jd_builder.py jd_prompts.py config.yaml requirements.txt .env.example; do
     if [ -f "$SCRIPT_DIR/$file" ]; then
         cp "$SCRIPT_DIR/$file" "$INSTALL_DIR/"
         echo "  ✓ $file"
     fi
 done
+
+# Copy .env if exists (for user configuration)
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    cp "$SCRIPT_DIR/.env" "$INSTALL_DIR/"
+    echo "  ✓ .env (user configuration)"
+fi
 
 # Create virtual environment
 echo ""

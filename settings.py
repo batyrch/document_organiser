@@ -17,6 +17,13 @@ import json
 from pathlib import Path
 from typing import Optional
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed
+
 # Service name for keychain storage
 KEYCHAIN_SERVICE = "DocumentOrganizer"
 

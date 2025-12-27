@@ -17,6 +17,10 @@ from pathlib import Path
 from datetime import datetime
 import base64
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 # Import icons
 from icons import lucide_icon, icon_with_text, status_icon, file_type_icon
 

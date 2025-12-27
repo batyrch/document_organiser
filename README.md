@@ -56,7 +56,23 @@ DOCUMENTS_PATH=/ docker compose up ui
 $env:DOCUMENTS_PATH=$env:USERPROFILE; docker compose up ui
 ```
 
-#### With API Keys
+#### With .env File
+
+Docker automatically reads from `.env` if present:
+
+```bash
+# Copy and edit .env
+cp .env.example .env
+
+# Add your API keys to .env:
+# ANTHROPIC_API_KEY=sk-ant-...
+# OPENAI_API_KEY=sk-...
+
+# Run (reads .env automatically)
+DOCUMENTS_PATH=$HOME docker compose up ui
+```
+
+Or pass keys directly:
 
 ```bash
 DOCUMENTS_PATH=$HOME \
@@ -64,7 +80,45 @@ ANTHROPIC_API_KEY=sk-ant-... \
 docker compose up ui
 ```
 
-### Option 2: Local Install
+### Option 2: Local Python with .env
+
+```bash
+git clone https://github.com/batyrch/document_organiser
+cd document_organiser
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your paths and API keys
+```
+
+Edit `.env` to set your directories:
+
+```bash
+# Required: Set your document paths
+OUTPUT_DIR=~/Documents/jd_documents
+INBOX_DIR=~/Documents/jd_documents/00-09 System/01 Inbox
+
+# Optional: AI provider (auto-detects if not set)
+AI_PROVIDER=auto
+
+# Optional: API keys (if using API providers)
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+```
+
+Run the app:
+
+```bash
+source venv/bin/activate
+streamlit run ui.py
+```
+
+### Option 3: Quick Install Script
 
 ```bash
 git clone https://github.com/batyrch/document_organiser
@@ -110,7 +164,38 @@ python document_organizer.py --rebuild-index
 
 ## Configuration
 
-Edit `config.yaml`:
+Configuration is loaded with the following priority (highest first):
+
+1. **Environment variables** (from `.env` or shell)
+2. **Settings UI** (saved in `~/Library/Application Support/DocumentOrganizer/`)
+3. **config.yaml** (or `config.local.yaml` for local overrides)
+4. **Defaults**
+
+### Using .env (Recommended)
+
+```bash
+cp .env.example .env
+```
+
+Key settings in `.env`:
+
+```bash
+# Document paths
+OUTPUT_DIR=~/Documents/jd_documents
+INBOX_DIR=~/Documents/jd_documents/00-09 System/01 Inbox
+
+# AI provider: auto, anthropic, openai, ollama, claude-code, keywords
+AI_PROVIDER=auto
+
+# API keys (if using cloud providers)
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+
+# Logging
+LOG_LEVEL=INFO
+```
+
+### Using config.yaml
 
 ```yaml
 paths:

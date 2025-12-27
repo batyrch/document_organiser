@@ -27,6 +27,9 @@ services:
       context: .
       args:
         INSTALL_PROVIDERS: anthropic,openai
+    env_file:
+      - path: .env
+        required: false
     volumes:
       # Mount filesystem - set DOCUMENTS_PATH to control access scope
       # Examples: DOCUMENTS_PATH=$HOME, DOCUMENTS_PATH=/, DOCUMENTS_PATH=/Users
@@ -34,13 +37,15 @@ services:
       # Persist settings between container restarts
       - docorg-settings:/home/appuser/.config/DocumentOrganizer
     environment:
+      # API keys and settings from .env or command line
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - AI_PROVIDER=${AI_PROVIDER:-auto}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      # Docker paths - always use /documents (ignore local .env paths)
-      - INBOX_DIR=/documents/inbox
-      - OUTPUT_DIR=/documents/jd_documents
+      # Docker paths - use /documents mount point
+      # Configure actual paths in Settings UI after startup
+      - OUTPUT_DIR=${OUTPUT_DIR:-/documents/jd_documents}
+      - INBOX_DIR=${INBOX_DIR:-/documents/inbox}
     restart: unless-stopped
 
   # Streamlit Web UI
