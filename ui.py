@@ -806,20 +806,20 @@ def render_actions_toolbar(
     action = None
 
     with col_move:
-        if st.button("Move", type="primary", use_container_width=True, disabled=not has_selection):
+        if st.button("Move", type="primary", width="stretch", disabled=not has_selection):
             action = "move"
 
     with col_reanalyze:
-        if st.button("Reanalyze", use_container_width=True, disabled=not has_selection):
+        if st.button("Analyze", width="stretch", disabled=not has_selection):
             action = "reanalyze"
 
     with col_delete:
-        if st.button("Delete", use_container_width=True, disabled=not has_selection):
+        if st.button("Delete", width="stretch", disabled=not has_selection):
             action = "delete"
 
     with col_reveal:
         fm_name = get_file_manager_name()
-        if st.button("Reveal", use_container_width=True, disabled=not has_selection, help=f"Show in {fm_name}"):
+        if st.button("Reveal", width="stretch", disabled=not has_selection, help=f"Show in {fm_name}"):
             action = "reveal"
 
     return action, selected_area, selected_category
@@ -875,22 +875,22 @@ def render_gallery_strip(
 
     with col_select:
         if selection_mode:
-            if st.button("Done", type="primary", use_container_width=True, key="gallery_done"):
+            if st.button("Done", type="primary", width="stretch", key="gallery_done"):
                 mode_changed = False  # Exit selection mode
         else:
-            if st.button("Select", use_container_width=True, key="gallery_select"):
+            if st.button("Select", width="stretch", key="gallery_select"):
                 mode_changed = True  # Enter selection mode
 
     with col_prev:
         # Can scroll left if current file is not the first
         can_scroll_left = current_idx > 0
-        if st.button("◀", use_container_width=True, disabled=not can_scroll_left, key="gallery_prev"):
+        if st.button("◀", width="stretch", disabled=not can_scroll_left, key="gallery_prev"):
             clicked_idx = current_idx - 1
 
     with col_next:
         # Can scroll right if current file is not the last
         can_scroll_right = current_idx < total_files - 1
-        if st.button("▶", use_container_width=True, disabled=not can_scroll_right, key="gallery_next"):
+        if st.button("▶", width="stretch", disabled=not can_scroll_right, key="gallery_next"):
             clicked_idx = current_idx + 1
 
     with col_count:
@@ -903,12 +903,12 @@ def render_gallery_strip(
     if selection_mode:
         col_all, col_none = st.columns([1, 1])
         with col_all:
-            if st.button("Select All", use_container_width=True, key="gallery_select_all"):
+            if st.button("Select All", width="stretch", key="gallery_select_all"):
                 st.session_state.selected_files = {str(f) for f, _, _ in files}
                 st.session_state.checkbox_key_version += 1
                 st.rerun()
         with col_none:
-            if st.button("Clear", use_container_width=True, key="gallery_clear"):
+            if st.button("Clear", width="stretch", key="gallery_clear"):
                 st.session_state.selected_files = set()
                 st.session_state.checkbox_key_version += 1
                 st.rerun()
@@ -938,7 +938,7 @@ def render_gallery_strip(
                 # Thumbnail - use higher resolution for sharp display
                 thumb = generate_thumbnail(str(file), size=(400, 400))
                 if thumb:
-                    st.image(thumb, use_container_width=True)
+                    st.image(thumb, width="stretch")
                 else:
                     icon = get_file_icon(file.suffix, size=48)
                     st.markdown(
@@ -951,6 +951,25 @@ def render_gallery_strip(
 
                 # File button - different behavior based on mode
                 btn_type = "primary" if is_current else "secondary"
+
+                # Build distinguishing caption from analysis
+                caption = ""
+                if analysis:
+                    issuer = analysis.get('issuer', '')
+                    date = analysis.get('date_mentioned', '')
+                    parts = []
+                    if issuer:
+                        # Abbreviate long issuer names
+                        parts.append(issuer[:15] if len(issuer) > 15 else issuer)
+                    if date:
+                        # Show abbreviated date (e.g., "Jan 2024")
+                        try:
+                            from datetime import datetime as dt
+                            d = dt.strptime(date[:10], "%Y-%m-%d")
+                            parts.append(d.strftime("%b %Y"))
+                        except (ValueError, TypeError):
+                            parts.append(date[:10])
+                    caption = " · ".join(parts) if parts else ""
 
                 if selection_mode:
                     # In selection mode: checkbox + click to toggle
@@ -968,7 +987,7 @@ def render_gallery_strip(
                         st.session_state.selected_files.discard(str(file))
 
                     # Also make thumbnail clickable
-                    if st.button(file.name[:12], key=f"gal_btn_{actual_idx}", use_container_width=True):
+                    if st.button(file.name[:12], key=f"gal_btn_{actual_idx}", width="stretch"):
                         # Toggle selection and set as preview
                         if str(file) in st.session_state.selected_files:
                             st.session_state.selected_files.discard(str(file))
@@ -979,9 +998,13 @@ def render_gallery_strip(
                         st.rerun()
                 else:
                     # In browse mode: click to select for preview
-                    if st.button(file.name[:12], key=f"gal_btn_{actual_idx}", use_container_width=True,
+                    if st.button(file.name[:12], key=f"gal_btn_{actual_idx}", width="stretch",
                                 type=btn_type if is_current else "secondary"):
                         clicked_idx = actual_idx
+
+                # Show distinguishing caption below button
+                if caption:
+                    st.caption(caption)
 
     return clicked_idx, mode_changed
 
@@ -1010,7 +1033,7 @@ def render_preview(file_path: Path | None, extracted_text: str = "") -> None:
 
     with tab2:
         if not extracted_text:
-            st.warning("No extracted text available. Click 'Reanalyze' to extract text.")
+            st.warning("No extracted text available. Click 'Analyze' to extract text.")
         else:
             # Use file path in key to ensure text updates when file changes
             text_key = f"preview_text_{hash(str(file_path))}"
@@ -1021,7 +1044,7 @@ def render_classification(analysis: dict | None, file_path: Path | None) -> None
     """Render classification/AI analysis section below preview."""
     if not analysis:
         if file_path:
-            st.warning("No analysis available. Click 'Reanalyze' to process this file.")
+            st.warning("No analysis available. Click 'Analyze' to process this file.")
         return
 
     # Compact metadata row
@@ -1287,78 +1310,69 @@ def delete_analysis_file(file_path: Path):
         analysis_path.unlink()
 
 
-def reanalyze_file(file_path: Path, skip_if_has_text: bool = True, progress_callback=None) -> bool:
-    """Reanalyze a file to extract text.
-
-    For organized files (with .meta.json), updates the metadata file
-    with the newly extracted text.
+def analyze_single_file(file_path: Path) -> tuple[bool, str]:
+    """Analyze a single file to extract text.
 
     Args:
-        file_path: Path to the file to reanalyze
-        skip_if_has_text: If True, skip files that already have extracted_text
-        progress_callback: Optional callback function(step: str) to report progress
+        file_path: Path to the file to analyze
 
     Returns:
-        True if file was processed, False if skipped
+        (success, message) tuple
     """
-    meta_path = file_path.with_suffix(file_path.suffix + ".meta.json")
-
-    # Check if we should skip this file (already has extracted text)
-    if skip_if_has_text and meta_path.exists():
-        try:
-            with open(meta_path, 'r') as f:
-                metadata = json.load(f)
-            existing_text = metadata.get("extracted_text", "").strip()
-            if existing_text:
-                print(f"  ⏭️  Skipping {file_path.name} - already has {len(existing_text)} chars of text")
-                return False  # Skip - already has extracted text
-        except (json.JSONDecodeError, IOError):
-            pass  # Continue with reanalysis if we can't read the file
-
-    print(f"  🔄 Reanalyzing {file_path.name}...")
+    print(f"  🔄 Analyzing {file_path.name}...")
 
     # Clean up orphaned analysis files in the same folder first
     cleanup_orphaned_analysis_files(file_path.parent)
     delete_analysis_file(file_path)
-    result = preprocess_file(str(file_path), progress_callback=progress_callback)
+    result = preprocess_file(str(file_path))
 
-    # Check if preprocess succeeded
     if not result.get("success"):
-        print(f"  ❌ Preprocess failed for {file_path.name}: {result.get('error', 'unknown')}")
-        return True  # Return True because we tried (not skipped)
+        error = result.get('error', 'unknown')
+        print(f"  ❌ Failed: {error}")
+        return False, f"Failed: {error}"
 
-    # If this is an organized file (has .meta.json), update it with extracted text
+    # Verify the analysis was saved
     analysis_path = get_analysis_path(str(file_path))
-
-    if meta_path.exists() and analysis_path.exists():
+    if analysis_path.exists():
         try:
-            # Load the new analysis with extracted text
             with open(analysis_path, 'r') as f:
                 analysis = json.load(f)
-
-            # Load existing metadata
-            with open(meta_path, 'r') as f:
-                metadata = json.load(f)
-
-            # Only update extracted_text - preserve all other manually curated fields
-            new_text = analysis.get("extracted_text", "")
-            metadata["extracted_text"] = new_text
-            print(f"  ✅ Updated {file_path.name} with {len(new_text)} chars of text")
-
-            # Save updated metadata
-            with open(meta_path, 'w') as f:
-                json.dump(metadata, f, indent=2, ensure_ascii=False)
-
-            # Clean up the analysis file since metadata is now updated
-            analysis_path.unlink()
+            text_len = len(analysis.get("extracted_text", ""))
+            print(f"  ✅ Extracted {text_len} chars")
+            return True, f"Extracted {text_len} chars"
         except (json.JSONDecodeError, IOError) as e:
-            print(f"  ❌ Failed to update metadata for {file_path.name}: {e}")
-    elif meta_path.exists():
-        print(f"  ⚠️  No meta.json created for {file_path.name}")
+            return False, f"Failed to read: {e}"
     else:
-        print(f"  ℹ️  No meta.json for {file_path.name} (inbox file)")
+        return False, "No analysis file created"
 
-    return True
+
+def analyze_files(files: list[Path]) -> dict:
+    """Analyze one or more files to extract text.
+
+    Unified function for both single file and bulk analysis.
+
+    Args:
+        files: List of file paths to analyze
+
+    Returns:
+        Dict with 'processed', 'failed', and 'messages' keys
+    """
+    results = {"processed": 0, "failed": 0, "messages": []}
+
+    for file_path in files:
+        if not file_path.exists():
+            results["failed"] += 1
+            results["messages"].append(f"{file_path.name}: File not found")
+            continue
+
+        success, message = analyze_single_file(file_path)
+        if success:
+            results["processed"] += 1
+        else:
+            results["failed"] += 1
+        results["messages"].append(f"{file_path.name}: {message}")
+
+    return results
 
 
 def cleanup_orphaned_analysis_files(folder: Path) -> int:
@@ -1496,13 +1510,13 @@ def main():
 
             nav_cols = st.columns(4)
             with nav_cols[0]:
-                st.button("◀", key="nav_back", on_click=go_back, disabled=not can_go_back, help="Back", use_container_width=True)
+                st.button("◀", key="nav_back", on_click=go_back, disabled=not can_go_back, help="Back", width="stretch")
             with nav_cols[1]:
-                st.button("▶", key="nav_forward", on_click=go_forward, disabled=not can_go_forward, help="Forward", use_container_width=True)
+                st.button("▶", key="nav_forward", on_click=go_forward, disabled=not can_go_forward, help="Forward", width="stretch")
             with nav_cols[2]:
-                st.button("▲", key="nav_up", on_click=go_up, disabled=not can_go_up, help="Parent folder", use_container_width=True)
+                st.button("▲", key="nav_up", on_click=go_up, disabled=not can_go_up, help="Parent folder", width="stretch")
             with nav_cols[3]:
-                st.button("▼", key="nav_down", on_click=go_down, disabled=not can_go_down, help="Into subfolder", use_container_width=True)
+                st.button("▼", key="nav_down", on_click=go_down, disabled=not can_go_down, help="Into subfolder", width="stretch")
 
             # Subfolder dropdown navigation
             if current_path.exists() and current_path.is_dir():
@@ -1551,50 +1565,36 @@ def main():
 
         # Analyze buttons - only for inbox mode
         if not st.session_state.browse_mode:
-            if st.button("Analyze All New Files", width="stretch"):
+            if st.button("Analyze All New", width="stretch"):
                 # Get files that need analysis
-                files_to_analyze = [(f, a, d) for f, a, d in all_files if not a]
+                files_to_analyze = [f for f, has_analysis, _ in all_files if not has_analysis]
                 total = len(files_to_analyze)
 
                 if total == 0:
                     st.info("All files already analyzed!")
                 else:
-                    # Create progress container
                     progress_container = st.empty()
+                    processed = 0
+                    failed = 0
 
-                    for idx, (file_path, _, _) in enumerate(files_to_analyze):
-                        processed = idx
-                        remaining = total - idx
-
-                        # Update progress display
+                    for idx, file_path in enumerate(files_to_analyze):
                         with progress_container.container():
-                            st.markdown(HAND_LOADING_CSS, unsafe_allow_html=True)
-                            progress_html = f"""
-                            <div class="hand-loading-container">
-                                <div class="loading">
-                                    <div class="finger finger-1"><div class="finger-item"><span></span><i></i></div></div>
-                                    <div class="finger finger-2"><div class="finger-item"><span></span><i></i></div></div>
-                                    <div class="finger finger-3"><div class="finger-item"><span></span><i></i></div></div>
-                                    <div class="finger finger-4"><div class="finger-item"><span></span><i></i></div></div>
-                                    <div class="last-finger"><div class="last-finger-item"><i></i></div></div>
-                                </div>
-                                <div class="hand-loading-text">
-                                    <strong>Processing:</strong> {file_path.name[:40]}{'...' if len(file_path.name) > 40 else ''}<br>
-                                    <strong>Completed:</strong> {processed} / {total}<br>
-                                    <strong>Remaining:</strong> {remaining}
-                                </div>
-                            </div>
-                            """
-                            st.markdown(progress_html, unsafe_allow_html=True)
-
-                        preprocess_file(str(file_path))
+                            st.info(f"Analyzing {idx + 1}/{total}: {file_path.name}")
+                        success, _ = analyze_single_file(file_path)
+                        if success:
+                            processed += 1
+                        else:
+                            failed += 1
 
                     progress_container.empty()
-                    st.success(f"Analyzed {total} files!")
+                    msg = f"Analyzed {processed} files"
+                    if failed > 0:
+                        msg += f", {failed} failed"
+                    st.success(msg)
                 st.rerun()
             st.divider()
 
-        if st.button("Refresh", use_container_width=True):
+        if st.button("Refresh", width="stretch"):
             st.rerun()
 
         st.divider()
@@ -1792,42 +1792,43 @@ def main():
                     st.error(f"Failed to move: {e}")
 
     elif action == "reanalyze":
+        # Build list of files to analyze (works for both single and bulk)
         if st.session_state.selection_mode:
-            # Bulk reanalyze
-            files_to_reanalyze = [f for f in st.session_state.selected_files if Path(f).exists()]
-            total = len(files_to_reanalyze)
-            if total > 0:
-                progress_container = st.empty()
-                processed_count = 0
-                skipped_count = 0
-                error_count = 0
-
-                for idx, file_str in enumerate(files_to_reanalyze):
-                    file_path = Path(file_str)
-                    with progress_container.container():
-                        st.info(f"Processing {idx + 1}/{total}: {file_path.name}")
-                    try:
-                        if reanalyze_file(file_path, skip_if_has_text=False):
-                            processed_count += 1
-                        else:
-                            skipped_count += 1
-                    except Exception as e:
-                        error_count += 1
-
-                progress_container.empty()
-                msg_parts = [f"Processed {processed_count} files"]
-                if skipped_count > 0:
-                    msg_parts.append(f"skipped {skipped_count}")
-                if error_count > 0:
-                    msg_parts.append(f"{error_count} errors")
-                st.success(", ".join(msg_parts))
-                st.rerun()
+            files_to_analyze = [Path(f) for f in st.session_state.selected_files]
+        elif current_file and current_file.exists():
+            files_to_analyze = [current_file]
         else:
-            # Single file reanalyze
-            if current_file and current_file.exists():
-                with hand_spinner("Re-analyzing..."):
-                    reanalyze_file(current_file, skip_if_has_text=False)
-                st.rerun()
+            files_to_analyze = []
+
+        if files_to_analyze:
+            total = len(files_to_analyze)
+            if total == 1:
+                # Single file - simple spinner
+                with hand_spinner("Analyzing..."):
+                    results = analyze_files(files_to_analyze)
+                if results["processed"] > 0:
+                    st.success("Analysis complete")
+                else:
+                    st.error("Analysis failed")
+            else:
+                # Multiple files - show progress
+                progress_container = st.empty()
+                processed = 0
+                failed = 0
+                for idx, file_path in enumerate(files_to_analyze):
+                    with progress_container.container():
+                        st.info(f"Analyzing {idx + 1}/{total}: {file_path.name}")
+                    success, _ = analyze_single_file(file_path)
+                    if success:
+                        processed += 1
+                    else:
+                        failed += 1
+                progress_container.empty()
+                msg = f"Analyzed {processed} files"
+                if failed > 0:
+                    msg += f", {failed} failed"
+                st.success(msg)
+            st.rerun()
 
     elif action == "delete":
         if st.session_state.selection_mode:
@@ -1927,9 +1928,9 @@ def main():
 
         # Analyze button if no analysis
         if not preview_analysis:
-            if st.button("Analyze Now", type="primary"):
+            if st.button("Analyze", type="primary"):
                 with hand_spinner("Analyzing..."):
-                    preprocess_file(str(preview_file))
+                    analyze_single_file(preview_file)
                 st.rerun()
 
 
