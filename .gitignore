@@ -117,3 +117,9 @@ organizer.log
 *.spec
 pip-log.txt
 pip-delete-this-directory.txt
+
+# =============================================================================
+# Session Files (Claude Code conversation logs)
+# =============================================================================
+sessions/
+*-session.md
