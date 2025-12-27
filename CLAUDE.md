@@ -4,23 +4,18 @@
 
 AI-powered document organizer using the Johnny.Decimal system. Extracts text from PDFs/images, categorizes with AI, and files documents into a structured folder hierarchy.
 
-## Repository Structure
+The project has two frontends:
+1. **Streamlit UI** (`ui.py`) - Current web-based interface
+2. **Electron App** (`document-organizer-electron/`) - Native macOS desktop app (in development)
 
-This project is split into **two separate repositories**:
+Both frontends share the same Python backend for document processing.
 
-| Repository | Path | Purpose |
-|------------|------|---------|
-| **document_organiser** | This repo | Python backend + Streamlit UI |
-| **document-organizer-electron** | `/Users/batch/Documents/GitHub/document-organizer-electron` | Electron/React native app |
-
-The Electron app communicates with this Python backend via `api_server.py` (JSON-RPC over stdin/stdout).
-
-## Project Structure (This Repo)
+## Project Structure
 
 ```
 document_organiser/
-├── # ===== PYTHON BACKEND =====
-├── document_organizer.py   # Core: text extraction, AI categorization, file organization
+├── # ===== PYTHON BACKEND (shared) =====
+├── document_organizer.py   # Core organizer: text extraction, AI categorization, file organization
 ├── ai_providers.py         # Pluggable AI providers (Claude, OpenAI, Ollama, Bedrock)
 ├── settings.py             # Persistent settings with keychain storage for API keys
 ├── jd_system.py            # Dynamic JD system management (jdex.json)
@@ -31,6 +26,56 @@ document_organiser/
 ├── # ===== STREAMLIT FRONTEND =====
 ├── ui.py                   # Streamlit web UI with gallery view
 ├── icons.py                # Lucide SVG icons for Streamlit UI
+│
+├── # ===== ELECTRON FRONTEND =====
+├── document-organizer-electron/
+│   ├── src/
+│   │   ├── main/                    # Electron main process
+│   │   │   ├── index.ts             # Window management, app lifecycle
+│   │   │   ├── python-bridge.ts     # Spawn Python backend, JSON IPC
+│   │   │   ├── ipc-handlers.ts      # IPC handlers for renderer
+│   │   │   ├── thumbnails.ts        # Thumbnail generation with sharp
+│   │   │   └── menu.ts              # Native app menu
+│   │   ├── renderer/                # React frontend
+│   │   │   ├── App.tsx              # Main app with router
+│   │   │   ├── pages/
+│   │   │   │   ├── DocumentsPage.tsx
+│   │   │   │   ├── SettingsPage.tsx
+│   │   │   │   └── SetupWizard.tsx
+│   │   │   ├── components/
+│   │   │   │   ├── Gallery/
+│   │   │   │   │   ├── GalleryStrip.tsx      # 7-thumbnail horizontal gallery
+│   │   │   │   │   └── ThumbnailCard.tsx     # Individual thumbnail with selection
+│   │   │   │   ├── Preview/
+│   │   │   │   │   ├── DocumentPreview.tsx   # Tabbed preview container
+│   │   │   │   │   ├── PDFViewer.tsx         # PDF rendering with pdfjs-dist
+│   │   │   │   │   └── ImageViewer.tsx
+│   │   │   │   ├── Actions/
+│   │   │   │   │   └── Toolbar.tsx           # Move/Analyze/Delete actions
+│   │   │   │   ├── Sidebar/
+│   │   │   │   │   └── Sidebar.tsx           # Navigation, stats, file source
+│   │   │   │   ├── Settings/
+│   │   │   │   │   ├── DirectoriesTab.tsx
+│   │   │   │   │   ├── AIProviderTab.tsx
+│   │   │   │   │   └── JDSystemTab.tsx
+│   │   │   │   ├── JDBuilder/
+│   │   │   │   │   └── InterviewChat.tsx     # AI chat for JD system creation
+│   │   │   │   └── common/
+│   │   │   │       ├── TagChips.tsx
+│   │   │   │       ├── Breadcrumb.tsx
+│   │   │   │       └── HandSpinner.tsx
+│   │   │   ├── store/
+│   │   │   │   └── useAppStore.ts    # Zustand state management
+│   │   │   ├── hooks/
+│   │   │   │   ├── useThumbnail.ts
+│   │   │   │   └── useFileOperations.ts
+│   │   │   └── styles/
+│   │   │       ├── globals.css
+│   │   │       └── animations.css
+│   │   └── shared/
+│   │       └── types.ts              # Shared TypeScript types
+│   ├── package.json
+│   └── forge.config.ts              # Electron Forge build config
 │
 ├── # ===== CONFIGURATION =====
 ├── config.yaml             # Configuration (paths, AI model, logging)
@@ -49,7 +94,7 @@ document_organiser/
 │                         FRONTENDS                                │
 ├────────────────────────────┬────────────────────────────────────┤
 │      Streamlit UI          │         Electron App               │
-│      (this repo: ui.py)    │    (separate repo)                 │
+│      (ui.py)               │    (document-organizer-electron)   │
 │                            │                                    │
 │  - Browser-based           │  - Native macOS app                │
 │  - Hot reload              │  - React + TypeScript              │
@@ -60,9 +105,9 @@ document_organiser/
              │                                  │
              ▼                                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                 PYTHON BACKEND (this repo)                       │
+│                      PYTHON BACKEND                              │
 ├─────────────────────────────────────────────────────────────────┤
-│  api_server.py (bridge for Electron)                            │
+│  api_server.py (for Electron)                                   │
 │    - Reads JSON commands from stdin                             │
 │    - Routes to appropriate module                               │
 │    - Returns JSON responses to stdout                           │
@@ -84,36 +129,96 @@ document_organiser/
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## api_server.py - IPC Bridge
+## Electron IPC Protocol
 
-The `api_server.py` script provides a JSON-RPC interface for the Electron app to communicate with the Python backend.
-
-**Protocol:** JSON over stdin/stdout (one JSON object per line)
+The Electron app communicates with Python via JSON-RPC over stdin/stdout.
 
 **Request format:**
 ```json
-{"id": "uuid-v4", "method": "files:list", "params": {"folder": "/path", "recursive": true}}
+{
+  "id": "uuid-v4",
+  "method": "files:list",
+  "params": {
+    "folder": "/path/to/folder",
+    "recursive": true
+  }
+}
 ```
 
 **Response format:**
 ```json
-{"id": "uuid-v4", "result": {...}, "error": null}
+{
+  "id": "uuid-v4",
+  "result": { ... },
+  "error": null
+}
 ```
 
 **Available methods:**
 | Method | Description | Params |
 |--------|-------------|--------|
 | `files:list` | List files in folder | `folder`, `recursive` |
-| `files:analyze` | Extract text + AI categorize | `filePath`, `force`, `folderHint` |
+| `files:analyze` | Extract text + AI categorize | `filePath` |
 | `files:move` | Organize to JD location | `filePath`, `area`, `category` |
 | `files:delete` | Delete file + metadata | `filePath` |
 | `settings:get` | Get all settings | - |
 | `settings:set` | Update settings | `key`, `value` |
 | `jd:getAreas` | Get JD structure | - |
+| `jd:startInterview` | Start JD builder chat | - |
+| `jd:sendMessage` | Send chat message | `message` |
+| `jd:acceptProposal` | Accept JD structure | - |
+| `thumbnails:generate` | Generate thumbnail | `filePath` |
 
-**Testing the API server:**
-```bash
-echo '{"id": "test", "method": "settings:get", "params": {}}' | python api_server.py
+## Electron Component Mapping
+
+Mapping from Streamlit UI (ui.py) to Electron React components:
+
+| Streamlit Function | React Component | Notes |
+|--------------------|-----------------|-------|
+| `render_gallery_strip()` | `GalleryStrip.tsx` | 7 visible thumbnails, pagination |
+| `render_preview()` | `DocumentPreview.tsx` | Tabs: Preview + Extracted Text |
+| `render_classification()` | `ClassificationPanel.tsx` | Metadata display + tags |
+| `render_actions_toolbar()` | `Toolbar.tsx` | Area/Category dropdowns + buttons |
+| `render_settings_page()` | `SettingsPage.tsx` | 4 tabs: Dirs, AI, JD, About |
+| `render_jd_interview()` | `InterviewChat.tsx` | Chat UI for JD builder |
+| `render_setup_wizard()` | `SetupWizard.tsx` | First-run configuration |
+| `render_breadcrumb()` | `Breadcrumb.tsx` | Clickable path navigation |
+| `render_tag_chips()` | `TagChips.tsx` | Colored tag display |
+| `show_hand_loading()` | `HandSpinner.tsx` | Animated loading indicator |
+| `generate_thumbnail()` | `thumbnails.ts` (main) | Uses sharp + pdfjs-dist |
+
+## State Management (Electron)
+
+Zustand store structure (`useAppStore.ts`):
+
+```typescript
+interface AppState {
+  // Navigation
+  currentPage: 'documents' | 'settings';
+  browseMode: boolean;
+  browseFolderPath: string;
+  browseRecursive: boolean;
+  navHistory: string[];
+  navHistoryIdx: number;
+
+  // Files
+  files: FileEntry[];
+  currentFileIdx: number;
+  selectionMode: boolean;
+  selectedFiles: Set<string>;
+  searchQuery: string;
+  searchField: string;
+
+  // Session
+  processedCount: number;
+  setupComplete: boolean;
+
+  // Actions
+  loadFiles: (folder: string, recursive: boolean) => Promise<void>;
+  analyzeFile: (path: string) => Promise<void>;
+  moveFile: (path: string, area: string, category: string) => Promise<void>;
+  deleteFile: (path: string) => Promise<void>;
+}
 ```
 
 ## Core Modules
@@ -319,6 +424,19 @@ python document_organizer.py --once
 python document_organizer.py --rebuild-index
 ```
 
+### Option 4: Electron App (macOS)
+```bash
+cd document-organizer-electron
+
+# Development
+npm install
+npm start
+
+# Build for distribution
+npm run make
+# Output: out/make/Document Organizer.dmg
+```
+
 ## Development Workflow
 
 ### Working on Streamlit UI
@@ -327,14 +445,39 @@ streamlit run ui.py
 # Edit ui.py, changes hot-reload
 ```
 
+### Working on Electron App
+```bash
+cd document-organizer-electron
+npm start
+# Edit React components, Vite hot-reloads renderer
+# Edit main process, requires restart
+```
+
 ### Working on Python Backend
-Changes to these files affect both the Streamlit UI and Electron app:
+Both frontends use the same Python backend. Changes to these files affect both:
 - `document_organizer.py` - Core processing logic
 - `ai_providers.py` - AI integrations
 - `settings.py` - Configuration management
 - `jd_system.py` - JD structure management
 - `jd_builder.py` - JD interview builder
-- `api_server.py` - IPC bridge (update when adding new methods for Electron)
 
-### Working on Electron App
-See the separate repository: `/Users/batch/Documents/GitHub/document-organizer-electron`
+For Electron, also update `api_server.py` if adding new IPC methods.
+
+## Build & Packaging
+
+### Electron App Packaging
+```bash
+cd document-organizer-electron
+
+# Package for current platform
+npm run package
+
+# Create distributable (DMG on macOS)
+npm run make
+
+# Build configuration in forge.config.ts
+```
+
+The Electron app bundles Python via PyInstaller. Build steps:
+1. `npm run build:python` - Create Python executable
+2. `npm run make` - Package Electron + Python together
