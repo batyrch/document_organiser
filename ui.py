@@ -556,15 +556,17 @@ def icon_label(icon_name: str, text: str, size: int = 16) -> str:
 # THUMBNAIL GENERATION
 # ==============================================================================
 
-@st.cache_data(ttl=3600)
-def generate_thumbnail(file_path: str, size: tuple = (400, 400)) -> bytes | None:
-    """Generate a high-quality thumbnail for a file. Returns image data as bytes.
+@st.cache_data(ttl=3600, max_entries=100)
+def generate_thumbnail(file_path: str, size: tuple = (300, 300)) -> bytes | None:
+    """Generate a thumbnail for a file. Returns image data as bytes.
 
-    Optimized for text-heavy scanned documents with sharpening for better readability.
+    Optimized for balance between quality and memory usage.
 
     Args:
         file_path: Path to the file
-        size: Maximum size for thumbnail generation (default 400x400 for sharp display)
+        size: Maximum size for thumbnail generation (default 300x300)
+
+    Note: Cache limited to 100 entries to prevent unbounded memory growth.
     """
     from PIL import ImageFilter, ImageEnhance
 
@@ -596,12 +598,12 @@ def generate_thumbnail(file_path: str, size: tuple = (400, 400)) -> bytes | None
             return buffer.getvalue()
 
         elif suffix == '.pdf' and HAS_PYMUPDF:
-            # PDF files - use first page with high resolution rendering
+            # PDF files - use first page with balanced resolution
             doc = fitz.open(str(path))
             if len(doc) > 0:
                 page = doc[0]
-                # Render at 2.0x resolution for sharp text in thumbnails
-                mat = fitz.Matrix(2.0, 2.0)
+                # Render at 1.5x resolution (good quality, 56% less memory than 2x)
+                mat = fitz.Matrix(1.5, 1.5)
                 pix = page.get_pixmap(matrix=mat)
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 img.thumbnail(size, Image.Resampling.LANCZOS)
@@ -935,8 +937,8 @@ def render_gallery_strip(
                 if is_selected:
                     card_classes += " selected"
 
-                # Thumbnail - use higher resolution for sharp display
-                thumb = generate_thumbnail(str(file), size=(400, 400))
+                # Thumbnail - balanced quality and memory usage
+                thumb = generate_thumbnail(str(file), size=(300, 300))
                 if thumb:
                     st.image(thumb, width="stretch")
                 else:
