@@ -166,10 +166,12 @@ python document_organizer.py --rebuild-index
 
 Configuration is loaded with the following priority (highest first):
 
-1. **Environment variables** (from `.env` or shell)
-2. **Settings UI** (saved in `~/Library/Application Support/DocumentOrganizer/`)
+1. **Settings UI** (saved in `~/Library/Application Support/DocumentOrganizer/`)
+2. **Environment variables** (from `.env` or shell)
 3. **config.yaml** (or `config.local.yaml` for local overrides)
 4. **Defaults**
+
+This means you can set initial paths in `.env`, then override them via the Settings UI.
 
 ### Using .env (Recommended)
 

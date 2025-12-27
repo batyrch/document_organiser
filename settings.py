@@ -228,27 +228,33 @@ class Settings:
     def output_dir(self) -> str:
         """Get the output directory.
 
-        Priority: Environment variable > Saved setting > Default
+        Priority: Saved setting (UI) > Environment variable > Default
+        This allows users to override .env via the Settings UI.
         """
-        # Environment variable takes precedence (for Docker and CLI use)
+        # Saved setting takes precedence (user configured via UI)
+        saved = self._settings.get("output_dir")
+        if saved:
+            return saved
+        # Fall back to environment variable (from .env or Docker)
         env_output = os.environ.get("OUTPUT_DIR")
         if env_output:
             return env_output
-        return self._settings.get("output_dir") or DEFAULT_SETTINGS["output_dir"]
+        return DEFAULT_SETTINGS["output_dir"]
 
     @property
     def inbox_dir(self) -> str:
         """Get the inbox directory.
 
-        Priority: Environment variable > Saved setting > Derived from output_dir
+        Priority: Saved setting (UI) > Environment variable > Derived from output_dir
         """
-        # Environment variable takes precedence (for Docker and CLI use)
+        # Saved setting takes precedence (user configured via UI)
+        saved = self._settings.get("inbox_dir")
+        if saved:
+            return saved
+        # Fall back to environment variable (from .env or Docker)
         env_inbox = os.environ.get("INBOX_DIR")
         if env_inbox:
             return env_inbox
-        inbox = self._settings.get("inbox_dir")
-        if inbox:
-            return inbox
         # Default: output_dir/00-09 System/01 Inbox
         return str(Path(self.output_dir) / "00-09 System" / "01 Inbox")
 

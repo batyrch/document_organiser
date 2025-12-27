@@ -305,8 +305,8 @@ def scan_jd_folders(output_dir: str) -> dict:
             if is_valid_jd_category(cat_name) and category_belongs_to_area(cat_name, area_name):
                 categories[cat_name] = {"keywords": []}
 
-        if categories:
-            discovered[area_name] = categories
+        # Include area even if empty (user may want to add categories later)
+        discovered[area_name] = categories
 
     return discovered
 

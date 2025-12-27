@@ -65,9 +65,11 @@ Pluggable AI backend system.
 Platform-specific settings with secure keychain storage. Loads `.env` automatically.
 
 **Configuration Priority** (highest first):
-1. Environment variables (from `.env` or shell)
-2. Saved settings (JSON file)
+1. Saved settings from UI (JSON file)
+2. Environment variables (from `.env` or shell)
 3. Defaults
+
+This allows users to set initial paths in `.env`, then override via Settings UI.
 
 **Storage Locations:**
 - macOS: `~/Library/Application Support/DocumentOrganizer/settings.json`

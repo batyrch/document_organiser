@@ -1699,6 +1699,22 @@ def main():
         if st.session_state.last_selected_file.exists():
             current_analysis = load_analysis(str(st.session_state.last_selected_file))
 
+    # Track file changes to reset toolbar selections
+    toolbar_file = current_file if not st.session_state.selection_mode else st.session_state.last_selected_file
+    toolbar_file_key = str(toolbar_file) if toolbar_file else None
+
+    if "toolbar_current_file" not in st.session_state:
+        st.session_state.toolbar_current_file = None
+
+    # When file changes, clear toolbar selections so they update to new AI suggestion
+    if st.session_state.toolbar_current_file != toolbar_file_key:
+        st.session_state.toolbar_current_file = toolbar_file_key
+        # Clear cached selections to allow new defaults
+        if "toolbar_area" in st.session_state:
+            del st.session_state.toolbar_area
+        if "toolbar_category" in st.session_state:
+            del st.session_state.toolbar_category
+
     # ========== ACTIONS TOOLBAR (full width) ==========
     action, selected_area, selected_category = render_actions_toolbar(
         files=files,
