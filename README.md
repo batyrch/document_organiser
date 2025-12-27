@@ -148,6 +148,8 @@ streamlit run ui.py
 - **Browse Mode**: Navigate existing organized files
 - **Gallery View**: Thumbnails with iOS-style selection
 - **Settings**: Configure directories and AI providers
+- **Smart Toolbar**: Area/Category dropdowns auto-sync with AI suggestions when you select a file
+- **Dynamic Folders**: Automatically detects your existing folder structure (including empty areas)
 
 ### Command Line
 

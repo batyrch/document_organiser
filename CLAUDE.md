@@ -36,6 +36,7 @@ Main processing engine.
 - `organize_file()` - Move file to JD folder structure with metadata
 - `preprocess_file()` / `preprocess_inbox()` - Extract + analyze without moving
 - `get_merged_jd_areas()` - Merge hardcoded JD_AREAS with filesystem folders and jdex.json
+- `scan_jd_folders()` - Discover user folders (includes empty areas for new categories)
 - `build_hash_index()` / `find_duplicate_in_index()` - SHA256-based duplicate detection
 
 **CLI:**
@@ -77,8 +78,8 @@ This allows users to set initial paths in `.env`, then override via Settings UI.
 - API keys: OS keychain (not in JSON)
 
 **Key Properties:**
-- `Settings.output_dir` - Resolves OUTPUT_DIR env var > saved setting > default
-- `Settings.inbox_dir` - Resolves INBOX_DIR env var > saved setting > default
+- `Settings.output_dir` - Resolves: saved setting > OUTPUT_DIR env var > default
+- `Settings.inbox_dir` - Resolves: saved setting > INBOX_DIR env var > default
 - `Settings.get_effective_provider()` - Auto-detect best AI provider
 
 **Key Functions:**
@@ -111,14 +112,18 @@ Streamlit web interface.
 - Browse mode for navigating existing files
 - Settings page with AI provider configuration
 - JD System builder with interview chat interface
+- Toolbar auto-syncs Area/Category with AI suggestions on file change
 
 **Key Components:**
 - `render_gallery_strip()` - Paginated thumbnail gallery
 - `render_preview()` - Full-width document preview
 - `render_classification()` - AI analysis display
-- `render_actions_toolbar()` - Move/Reanalyze/Delete actions
+- `render_actions_toolbar()` - Move/Reanalyze/Delete actions (syncs with AI suggestions)
 - `render_settings_page()` - Settings UI with tabs
 - `render_jd_interview()` - Chat interface for JD builder
+
+**Toolbar Sync Logic:**
+When user selects a different file, the toolbar clears cached selections (`toolbar_area`, `toolbar_category`) so dropdowns re-initialize with the new file's AI-suggested Area/Category.
 
 ## Johnny.Decimal System
 
